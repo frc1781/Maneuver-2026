@@ -178,6 +178,130 @@ export const strategyPresets: Record<string, string[]> = {
 };
 
 // =============================================================================
+// TBA VALIDATION MAPPINGS
+// =============================================================================
+
+/**
+ * Mapping types for TBA validation.
+ * - 'count': Direct numeric comparison
+ * - 'countMatching': Count occurrences matching a specific value
+ * - 'boolean': True/false comparison
+ */
+export type TBAMappingType = 'count' | 'countMatching' | 'boolean';
+
+/**
+ * Maps game actions/toggles to TBA score breakdown fields for validation.
+ * This allows the validation system to compare scouted data against TBA data.
+ * 
+ * HOW TO CUSTOMIZE:
+ * 1. Update `categories` with your game's validation groupings
+ * 2. Update `actionMappings` to map your actions to TBA breakdown paths
+ * 3. Update `toggleMappings` for endgame/mobility toggles
+ * 
+ * TBA breakdown paths can be found by inspecting TBA API responses for your event.
+ * See: https://www.thebluealliance.com/apidocs/v3
+ */
+export const tbaValidation = {
+    /**
+     * Validation categories group related fields for display
+     */
+    categories: [
+        { key: 'auto-actions', label: 'Auto Scoring', phase: 'auto' as const },
+        { key: 'teleop-actions', label: 'Teleop Scoring', phase: 'teleop' as const },
+        { key: 'endgame', label: 'Endgame', phase: 'endgame' as const },
+        { key: 'mobility', label: 'Auto Mobility', phase: 'auto' as const },
+    ],
+
+    /**
+     * Action mappings - maps scouting action keys to TBA breakdown fields
+     * 
+     * Template structure (customize for your game):
+     * 'actionKey': {
+     *   tbaPath: 'path.in.breakdown' or ['robot1Path', 'robot2Path', 'robot3Path'],
+     *   type: 'count' | 'countMatching' | 'boolean',
+     *   matchValue?: 'value to match' (required for countMatching),
+     *   category: 'category-key',
+     * }
+     * 
+     * Example for 2025 REEFSCAPE:
+     * 'autoCoralL1': { tbaPath: 'autoReef.trough', type: 'count', category: 'auto-actions' },
+     * 'autoCoralL4': { tbaPath: 'autoReef.tba_topRowCount', type: 'count', category: 'auto-actions' },
+     */
+    actionMappings: {
+        // Auto phase actions
+        action1: {
+            tbaPath: 'autoBreakdownField1',
+            type: 'count' as TBAMappingType,
+            category: 'auto-actions',
+        },
+        action2: {
+            tbaPath: 'autoBreakdownField2',
+            type: 'count' as TBAMappingType,
+            category: 'auto-actions',
+        },
+        action3: {
+            tbaPath: 'autoBreakdownField3',
+            type: 'count' as TBAMappingType,
+            category: 'auto-actions',
+        },
+        action4: {
+            tbaPath: 'autoBreakdownField4',
+            type: 'count' as TBAMappingType,
+            category: 'auto-actions',
+        },
+        // Teleop phase actions
+        teleopSpecial: {
+            tbaPath: 'teleopBreakdownField',
+            type: 'count' as TBAMappingType,
+            category: 'teleop-actions',
+        },
+    },
+
+    /**
+     * Toggle mappings - maps scouting toggles to TBA breakdown fields
+     * 
+     * For per-robot fields (endgame, mobility), use array of paths:
+     * tbaPath: ['endGameRobot1', 'endGameRobot2', 'endGameRobot3']
+     * 
+     * Example for 2025 REEFSCAPE:
+     * 'deepClimb': {
+     *   tbaPath: ['endGameRobot1', 'endGameRobot2', 'endGameRobot3'],
+     *   type: 'countMatching',
+     *   matchValue: 'DeepCage',
+     *   category: 'endgame',
+     * },
+     */
+    toggleMappings: {
+        // Auto toggle (mobility example)
+        autoToggle: {
+            tbaPath: ['autoLineRobot1', 'autoLineRobot2', 'autoLineRobot3'],
+            type: 'countMatching' as TBAMappingType,
+            matchValue: 'Yes',
+            category: 'mobility',
+        },
+        // Endgame toggles
+        option1: {
+            tbaPath: ['endGameRobot1', 'endGameRobot2', 'endGameRobot3'],
+            type: 'countMatching' as TBAMappingType,
+            matchValue: 'Option1',
+            category: 'endgame',
+        },
+        option2: {
+            tbaPath: ['endGameRobot1', 'endGameRobot2', 'endGameRobot3'],
+            type: 'countMatching' as TBAMappingType,
+            matchValue: 'Option2',
+            category: 'endgame',
+        },
+        option3: {
+            tbaPath: ['endGameRobot1', 'endGameRobot2', 'endGameRobot3'],
+            type: 'countMatching' as TBAMappingType,
+            matchValue: 'Option3',
+            category: 'endgame',
+        },
+    },
+} as const;
+
+// =============================================================================
 // TYPE EXPORTS (derived from schema)
 // =============================================================================
 
@@ -185,6 +309,12 @@ export type ActionKey = keyof typeof actions;
 export type AutoToggleKey = keyof typeof toggles.auto;
 export type TeleopToggleKey = keyof typeof toggles.teleop;
 export type EndgameToggleKey = keyof typeof toggles.endgame;
+
+// TBA Validation types
+export type ValidationCategoryKey = typeof tbaValidation.categories[number]['key'];
+export type ActionMappingKey = keyof typeof tbaValidation.actionMappings;
+export type ToggleMappingKey = keyof typeof tbaValidation.toggleMappings;
+
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -249,4 +379,58 @@ export function generateStrategyColumns(): Array<{
     });
 
     return columns;
+}
+
+// =============================================================================
+// TBA VALIDATION HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Get all validation categories
+ */
+export function getValidationCategories() {
+    return tbaValidation.categories;
+}
+
+/**
+ * Get TBA mapping for an action
+ */
+export function getActionMapping(actionKey: ActionMappingKey) {
+    return tbaValidation.actionMappings[actionKey];
+}
+
+/**
+ * Get TBA mapping for a toggle
+ */
+export function getToggleMapping(toggleKey: ToggleMappingKey) {
+    return tbaValidation.toggleMappings[toggleKey];
+}
+
+/**
+ * Get all action keys that have TBA mappings
+ */
+export function getAllMappedActionKeys(): ActionMappingKey[] {
+    return Object.keys(tbaValidation.actionMappings) as ActionMappingKey[];
+}
+
+/**
+ * Get all toggle keys that have TBA mappings
+ */
+export function getAllMappedToggleKeys(): ToggleMappingKey[] {
+    return Object.keys(tbaValidation.toggleMappings) as ToggleMappingKey[];
+}
+
+/**
+ * Get actions/toggles for a specific validation category
+ */
+export function getMappingsForCategory(categoryKey: ValidationCategoryKey) {
+    const actions = Object.entries(tbaValidation.actionMappings)
+        .filter(([, mapping]) => mapping.category === categoryKey)
+        .map(([key]) => ({ key, type: 'action' as const }));
+
+    const toggles = Object.entries(tbaValidation.toggleMappings)
+        .filter(([, mapping]) => mapping.category === categoryKey)
+        .map(([key]) => ({ key, type: 'toggle' as const }));
+
+    return [...actions, ...toggles];
 }

@@ -40,8 +40,7 @@ import PickListPage from "@/core/pages/PickListPage";
 import ScoutManagementDashboardPage from "@/core/pages/ScoutManagementDashboardPage";
 import AchievementsPage from "@/core/pages/AchievementsPage";
 import DevUtilitiesPage from "@/core/pages/DevUtilitiesPage";
-
-// import { MatchValidationPage } from "./pages/MatchValidationPage";
+import { MatchValidationPage } from "@/core/pages/MatchValidationPage";
 import { InstallPrompt } from '@/core/components/pwa/InstallPrompt';
 import { PWAUpdatePrompt } from '@/core/components/pwa/PWAUpdatePrompt';
 import { StatusBarSpacer } from '@/core/components/StatusBarSpacer';
@@ -106,9 +105,9 @@ function App() {
         <Route path="/match-strategy" element={<MatchStrategyPage />} />
         <Route path="/pick-list" element={<PickListPage />} />
         {/* <Route path="/pit-scouting" element={<PitScoutingPage />} />  */}
-        {/* <Route path="/match-validation" element={<MatchValidationPage />} /> */}
         <Route path="/scout-management" element={<ScoutManagementDashboardPage />} />
         <Route path="/achievements" element={<AchievementsPage />} />
+        <Route path="/match-validation" element={<MatchValidationPage />} />
         <Route path="/dev-utilities" element={<DevUtilitiesPage />} />
 
 

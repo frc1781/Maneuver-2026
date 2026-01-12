@@ -200,6 +200,107 @@ export const generateRandomPredictions = async (scoutName: string, count: number
 };
 
 /**
+ * Generate scouting data aligned with TBA match data for validation testing
+ * 
+ * This fetches actual TBA matches for the current event and generates
+ * scouting entries for all teams. The data will have realistic values
+ * for testing the match validation feature.
+ */
+export const generateTBAAlignedScoutingData = async (matchCount: number = 10): Promise<{ success: boolean; message: string; matchesGenerated: number }> => {
+    console.log('🧪 Generating TBA-aligned scouting data for validation testing...');
+
+    // Get current event from localStorage
+    const eventKey = localStorage.getItem('eventKey');
+    if (!eventKey) {
+        return { success: false, message: 'No event selected. Please select an event first.', matchesGenerated: 0 };
+    }
+
+    // Get TBA API key
+    const apiKey = import.meta.env.VITE_TBA_API_KEY;
+    if (!apiKey) {
+        return { success: false, message: 'TBA API key not configured in .env file.', matchesGenerated: 0 };
+    }
+
+    try {
+        // Fetch TBA matches for the event
+        const response = await fetch(`https://www.thebluealliance.com/api/v3/event/${eventKey}/matches`, {
+            headers: { 'X-TBA-Auth-Key': apiKey }
+        });
+
+        if (!response.ok) {
+            return { success: false, message: `TBA API error: ${response.status}`, matchesGenerated: 0 };
+        }
+
+        const allMatches = await response.json();
+
+        // Filter to qualification matches with score breakdowns, limit to matchCount
+        const matches = allMatches
+            .filter((m: any) => m.comp_level === 'qm' && m.score_breakdown)
+            .slice(0, matchCount);
+
+        if (matches.length === 0) {
+            return { success: false, message: 'No qualification matches with scores found.', matchesGenerated: 0 };
+        }
+
+        let entriesGenerated = 0;
+
+        for (const match of matches) {
+            const redTeams = (match.alliances.red.team_keys as string[]).map(k => parseInt(k.replace('frc', '')));
+            const blueTeams = (match.alliances.blue.team_keys as string[]).map(k => parseInt(k.replace('frc', '')));
+
+            // Extract matchKey from full TBA key (e.g., "2025mrcmp_qm10" -> "qm10")
+            const matchKey = match.key.includes('_') ? match.key.split('_')[1] : match.key;
+
+            // Generate scouting entry for each team
+            for (const teamNumber of redTeams) {
+                const entry: ScoutingEntryBase<Record<string, unknown>> = {
+                    id: `${eventKey}::${matchKey}::${teamNumber}::red`,
+                    teamNumber,
+                    matchNumber: match.match_number,
+                    allianceColor: 'red',
+                    scoutName: TEST_SCOUT_NAMES[randomInt(0, TEST_SCOUT_NAMES.length - 1)] || "Test Scout",
+                    eventKey,
+                    matchKey: matchKey,
+                    timestamp: Date.now() - randomInt(0, 1000 * 60 * 60),
+                    comments: `Auto-generated for validation testing`,
+                    gameData: generateRandomGameData(),
+                };
+                await saveScoutingEntry(entry);
+                entriesGenerated++;
+            }
+
+            for (const teamNumber of blueTeams) {
+                const entry: ScoutingEntryBase<Record<string, unknown>> = {
+                    id: `${eventKey}::${matchKey}::${teamNumber}::blue`,
+                    teamNumber,
+                    matchNumber: match.match_number,
+                    allianceColor: 'blue',
+                    scoutName: TEST_SCOUT_NAMES[randomInt(0, TEST_SCOUT_NAMES.length - 1)] || "Test Scout",
+                    eventKey,
+                    matchKey: matchKey,
+                    timestamp: Date.now() - randomInt(0, 1000 * 60 * 60),
+                    comments: `Auto-generated for validation testing`,
+                    gameData: generateRandomGameData(),
+                };
+                await saveScoutingEntry(entry);
+                entriesGenerated++;
+            }
+        }
+
+        console.log(`✅ Generated ${entriesGenerated} scouting entries for ${matches.length} matches`);
+        return {
+            success: true,
+            message: `Generated ${entriesGenerated} entries for ${matches.length} matches`,
+            matchesGenerated: matches.length
+        };
+
+    } catch (error) {
+        console.error('Error generating TBA-aligned data:', error);
+        return { success: false, message: `Error: ${error}`, matchesGenerated: 0 };
+    }
+};
+
+/**
  * Completely reset all databases
  */
 export const resetEntireDatabase = async () => {

@@ -1,8 +1,8 @@
 /**
  * Match Validation Types
  * 
- * Type definitions for Phase 3: Validation Logic
- * Used for comparing scouted data against TBA official data
+ * Generic type definitions for match validation.
+ * Uses dynamic action/toggle keys from game-schema instead of hardcoded fields.
  */
 
 // ============================================================================
@@ -22,7 +22,8 @@ export type ValidationStatus =
   | 'passed'         // No significant discrepancies
   | 'flagged'        // Discrepancies detected, review recommended
   | 'failed'         // Major discrepancies, re-scouting required
-  | 'no-tba-data';   // TBA data not available
+  | 'no-tba-data'    // TBA data not available
+  | 'no-scouting';   // No scouting data for this match
 
 /**
  * Confidence level in the scouted data
@@ -30,16 +31,9 @@ export type ValidationStatus =
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
 /**
- * Category of data being compared
+ * Category of data being compared (derived from game-schema)
  */
-export type DataCategory =
-  | 'auto-coral'
-  | 'teleop-coral'
-  | 'algae'
-  | 'endgame'
-  | 'mobility'
-  | 'fouls'
-  | 'total-score';
+export type DataCategory = string;  // Dynamic, comes from game-schema.tbaValidation.categories
 
 // ============================================================================
 // Discrepancy Reporting
@@ -50,7 +44,8 @@ export type DataCategory =
  */
 export interface Discrepancy {
   category: DataCategory;
-  field: string;  // Specific field name (e.g., "autoCoralL4Count")
+  field: string;  // Action/toggle key from game-schema
+  fieldLabel: string;  // Human-readable label
   scoutedValue: number;
   tbaValue: number;
   difference: number;  // Absolute difference
@@ -76,23 +71,10 @@ export interface AllianceValidation {
   scoutedData?: ScoutedAllianceData;
   tbaData?: TBAAllianceData;
 
-  // Calculation breakdown for debugging score differences
+  // Generic calculation breakdown
   calculationBreakdown?: {
-    scouted: {
-      autoCoralPts: number;
-      autoAlgaePts: number;
-      mobilityPts: number;
-      teleopCoralPts: number;
-      teleopAlgaePts: number;
-      endgamePts: number;
-    };
-    tba: {
-      autoCoralPts: number;
-      teleopCoralPts: number;
-      algaePts: number;
-      mobilityPts: number;
-      endgamePts: number;
-    };
+    scouted: Record<string, number>;  // Points by category
+    tba: Record<string, number>;  // Points by category
   };
 }
 
@@ -108,6 +90,7 @@ export interface TeamValidation {
   confidence: ConfidenceLevel;
   flagForReview: boolean;
   notes: string[];
+
   // Correction metadata
   isCorrected?: boolean;
   correctionCount?: number;
@@ -115,30 +98,12 @@ export interface TeamValidation {
   lastCorrectedBy?: string;
   correctionNotes?: string;
   originalScoutName?: string;
-  // Scoring breakdown for identifying which teams contributed what
+
+  // Generic scoring breakdown - keys are action/toggle names from schema
   scoringBreakdown?: {
-    auto: {
-      L1: number;
-      L2: number;
-      L3: number;
-      L4: number;
-      algaeNet: number;
-      algaeProcessor: number;
-      mobility: boolean;
-    };
-    teleop: {
-      L1: number;
-      L2: number;
-      L3: number;
-      L4: number;
-      algaeNet: number;
-      algaeProcessor: number;
-    };
-    endgame: {
-      deep: boolean;
-      shallow: boolean;
-      park: boolean;
-    };
+    auto: Record<string, number>;     // Auto phase actions
+    teleop: Record<string, number>;   // Teleop phase actions
+    endgame: Record<string, boolean>; // Endgame toggles
   };
 }
 
@@ -151,6 +116,7 @@ export interface MatchValidationResult {
   matchKey: string;  // TBA match key (e.g., "2025mrcmp_qm1")
   matchNumber: string;
   compLevel: string;  // "qm", "qf", "sf", "f"
+  setNumber?: number; // For elim matches
 
   // Overall status
   status: ValidationStatus;
@@ -198,17 +164,9 @@ export interface ValidationThresholds {
 
 /**
  * Per-category threshold overrides
- * If not specified for a category, falls back to default thresholds
+ * Keys are category names from game-schema
  */
-export interface CategoryThresholds {
-  'auto-coral'?: ValidationThresholds;
-  'teleop-coral'?: ValidationThresholds;
-  'algae'?: ValidationThresholds;
-  'endgame'?: ValidationThresholds;
-  'mobility'?: ValidationThresholds;
-  'fouls'?: ValidationThresholds;
-  'total-score'?: ValidationThresholds;
-}
+export type CategoryThresholds = Record<string, ValidationThresholds | undefined>;
 
 /**
  * Configuration for validation behavior
@@ -217,11 +175,11 @@ export interface ValidationConfig {
   thresholds: ValidationThresholds;  // Default thresholds
   categoryThresholds?: CategoryThresholds;  // Per-category overrides
 
-  // Flags for enabling/disabling specific checks
+  // Flags for enabling/disabling validation by phase
   checkAutoScoring: boolean;
   checkTeleopScoring: boolean;
   checkEndgame: boolean;
-  checkFouls: boolean;
+  checkMobility: boolean;
   checkTotalScore: boolean;
 
   // Confidence calculation settings
@@ -245,14 +203,11 @@ export const DEFAULT_VALIDATION_CONFIG: ValidationConfig = {
     warningAbsolute: 3,
     minorAbsolute: 1
   },
-  categoryThresholds: {
-    // Per-category overrides can be added here
-    // Example: 'algae': { critical: 50, warning: 30, minor: 10, ... }
-  },
+  categoryThresholds: {},
   checkAutoScoring: true,
   checkTeleopScoring: true,
   checkEndgame: true,
-  checkFouls: true,
+  checkMobility: true,
   checkTotalScore: true,
   minMatchesForHighConfidence: 10,
   maxDiscrepanciesForHighConfidence: 2,
@@ -261,52 +216,26 @@ export const DEFAULT_VALIDATION_CONFIG: ValidationConfig = {
 };
 
 // ============================================================================
-// Aggregated Data for Comparison
+// Aggregated Data for Comparison (Generic)
 // ============================================================================
 
 /**
  * Aggregated scouted data for one alliance (sum of all team data)
+ * Uses generic Record types for action/toggle data
  */
 export interface ScoutedAllianceData {
   alliance: 'red' | 'blue';
+  matchKey: string;
   matchNumber: string;
   eventKey: string;
   teams: string[];  // Team numbers
   scoutNames: string[];
 
-  // Auto scoring (totals)
-  autoCoralL1: number;
-  autoCoralL2: number;
-  autoCoralL3: number;
-  autoCoralL4: number;
-  autoCoralTotal: number;
+  // Generic action aggregation - keys come from game-schema
+  actions: Record<string, number>;  // e.g., { 'action1': 5, 'action2': 3 }
 
-  autoAlgaeNet: number;
-  autoAlgaeProcessor: number;
-  autoAlgaeTotal: number;
-
-  autoMobility: number;  // Count of robots that crossed line
-
-  // Teleop scoring (totals)
-  teleopCoralL1: number;
-  teleopCoralL2: number;
-  teleopCoralL3: number;
-  teleopCoralL4: number;
-  teleopCoralTotal: number;
-
-  teleopAlgaeNet: number;
-  teleopAlgaeProcessor: number;
-  teleopAlgaeTotal: number;
-
-  // Endgame (counts)
-  deepClimbs: number;
-  shallowClimbs: number;
-  parks: number;
-  climbFails: number;
-
-  // Other
-  brokeDown: number;
-  playedDefense: number;
+  // Generic toggle aggregation - count of robots with toggle true
+  toggles: Record<string, number>;  // e.g., { 'autoToggle': 2, 'option1': 1 }
 
   // Missing data tracking
   missingTeams: string[];  // Teams in match but not scouted
@@ -315,57 +244,68 @@ export interface ScoutedAllianceData {
 
 /**
  * TBA alliance data extracted for comparison
+ * Uses generic Record type for breakdown data
  */
 export interface TBAAllianceData {
   alliance: 'red' | 'blue';
   teams: string[];  // Team numbers (without "frc" prefix)
 
-  // Scores
+  // Scores from TBA
   totalPoints: number;
   autoPoints: number;
   teleopPoints: number;
   foulPoints: number;
 
-  // Auto coral (from grid)
-  autoCoralL1: number;
-  autoCoralL2: number;
-  autoCoralL3: number;
-  autoCoralL4: number;
-  autoCoralTotal: number;
-  autoCoralPoints: number;
+  // Generic breakdown - keys derived from TBA mappings in game-schema
+  breakdown: Record<string, number>;  // e.g., { 'action1': 5, 'option1': 2 }
 
-  // Teleop coral (from grid)
-  teleopCoralL1: number;
-  teleopCoralL2: number;
-  teleopCoralL3: number;
-  teleopCoralL4: number;
-  teleopCoralTotal: number;
-  teleopCoralPoints: number;
-
-  // Algae (combined auto + teleop in TBA data)
-  algaeNet: number;
-  algaeProcessor: number;
-  algaeTotal: number;
-  algaePoints: number;
-
-  // Mobility
-  mobilityCount: number;
-  mobilityPoints: number;
-
-  // Endgame
-  deepClimbs: number;
-  shallowClimbs: number;
-  parks: number;
-  endgamePoints: number;
-
-  // Bonuses
-  autoBonusAchieved: boolean;
-  coralBonusAchieved: boolean;
-  bargeBonusAchieved: boolean;
-
-  // Penalties
+  // Penalties (always present in TBA data)
   foulCount: number;
   techFoulCount: number;
+}
+
+// ============================================================================
+// Match Display Types (TBA-First)
+// ============================================================================
+
+/**
+ * Match item for display in match list
+ * Combines TBA match data with scouting/validation status
+ */
+export interface MatchListItem {
+  matchKey: string;
+  matchNumber: number;
+  compLevel: string;
+  setNumber: number;
+  displayName: string;  // e.g., "Qual 15", "SF 1-1", "Final 2"
+
+  // Teams
+  redTeams: string[];
+  blueTeams: string[];
+
+  // Status
+  hasScouting: boolean;  // Whether any scouting data exists
+  scoutingComplete: boolean;  // All 6 teams scouted
+  redTeamsScouted: number;  // 0-3
+  blueTeamsScouted: number; // 0-3
+
+  // Validation (only present if validated)
+  validationResult?: MatchValidationResult;
+
+  // TBA data availability
+  hasTBAResults: boolean;  // Whether TBA has score breakdown
+
+  // TBA scores (optional, only if hasTBAResults is true)
+  redScore?: number;
+  blueScore?: number;
+  redAutoScore?: number;
+  blueAutoScore?: number;
+  redTeleopScore?: number;
+  blueTeleopScore?: number;
+
+  // Match timing
+  scheduledTime?: number;
+  actualTime?: number;
 }
 
 // ============================================================================
@@ -389,13 +329,15 @@ export interface ValidationResultDB {
  */
 export interface ValidationSummary {
   eventKey: string;
-  totalMatches: number;
-  validatedMatches: number;
-  pendingMatches: number;
+  totalMatches: number;  // Total matches from TBA
+  scoutedMatches: number;  // Matches with any scouting data
+  validatedMatches: number;  // Matches that have been validated
+  pendingMatches: number;  // Matches with scouting but not validated
   passedMatches: number;
   flaggedMatches: number;
   failedMatches: number;
   noTBADataMatches: number;
+  noScoutingMatches: number;
 
   totalDiscrepancies: number;
   criticalDiscrepancies: number;
@@ -406,4 +348,20 @@ export interface ValidationSummary {
   matchesRequiringReScout: number;
 
   generatedAt: number;
+}
+
+// ============================================================================
+// Filter Types
+// ============================================================================
+
+/**
+ * Match list filter options
+ */
+export interface MatchFilters {
+  status: 'all' | 'passed' | 'flagged' | 'failed' | 'pending' | 'no-tba-data' | 'no-scouting';
+  matchType: 'all' | 'qm' | 'sf' | 'f';
+  scoutingStatus: 'all' | 'complete' | 'partial' | 'none';
+  searchQuery: string;
+  sortBy: 'match' | 'status' | 'discrepancies' | 'confidence';
+  sortOrder: 'asc' | 'desc';
 }

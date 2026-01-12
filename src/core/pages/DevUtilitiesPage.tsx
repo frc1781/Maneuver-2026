@@ -16,6 +16,7 @@ import {
 import {
     generateRandomScouts,
     generateRandomScoutingData,
+    generateTBAAlignedScoutingData,
     resetEntireDatabase
 } from '@/core/lib/testDataGenerator';
 import { backfillAchievementsForAllScouts } from '@/core/lib/achievementUtils';
@@ -56,6 +57,25 @@ const DevUtilitiesPage: React.FC = () => {
         } catch (error) {
             console.error('Error generating match data:', error);
             showMessage('❌ Failed to generate match data', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGenerateTBAAlignedData = async () => {
+        setLoading(true);
+        try {
+            const result = await generateTBAAlignedScoutingData(15);
+            if (result.success) {
+                showMessage(`✅ ${result.message}`, 'success');
+                toast.success(result.message);
+            } else {
+                showMessage(`⚠️ ${result.message}`, 'error');
+                toast.error(result.message);
+            }
+        } catch (error) {
+            console.error('Error generating TBA-aligned data:', error);
+            showMessage('❌ Failed to generate TBA-aligned data', 'error');
         } finally {
             setLoading(false);
         }
@@ -120,8 +140,8 @@ const DevUtilitiesPage: React.FC = () => {
 
             {message && (
                 <Card className={`border-2 ${messageType === 'success' ? 'border-green-500 bg-green-50 dark:bg-green-950' :
-                        messageType === 'error' ? 'border-red-500 bg-red-50 dark:bg-red-950' :
-                            'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                    messageType === 'error' ? 'border-red-500 bg-red-50 dark:bg-red-950' :
+                        'border-blue-500 bg-blue-50 dark:bg-blue-950'
                     }`}>
                     <CardContent className="pt-4">
                         <div className="flex items-center gap-2">
@@ -199,8 +219,19 @@ const DevUtilitiesPage: React.FC = () => {
                             {loading ? 'Generating...' : 'Generate Schema Data'}
                         </Button>
 
+                        <Button
+                            onClick={handleGenerateTBAAlignedData}
+                            disabled={loading}
+                            className="w-full"
+                            size="lg"
+                            variant="default"
+                        >
+                            <Database className="h-4 w-4 mr-2" />
+                            {loading ? 'Generating...' : 'Generate TBA Match Data'}
+                        </Button>
+
                         <p className="text-xs text-gray-500 italic">
-                            * This uses game-schema.ts to generate valid random data for all actions and toggles.
+                            * TBA Match Data uses current event to create scouting entries for real matches (for validation testing).
                         </p>
                     </CardContent>
                 </Card>

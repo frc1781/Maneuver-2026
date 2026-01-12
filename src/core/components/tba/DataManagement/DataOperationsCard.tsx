@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/core/components/ui/card";
 import { Button } from "@/core/components/ui/button";
 import { Alert, AlertDescription } from "@/core/components/ui/alert";
-import { 
+import {
   Download,
   Loader2,
   MapPin,
@@ -104,14 +104,14 @@ export const DataOperationsCard: React.FC<DataOperationsCardProps> = ({
 
   const getLoadButton = () => {
     const { requiresEvent, requiresTBA, requiresNexus } = dataTypeInfo;
-    
+
     // Check requirements
     const hasEventKey = !requiresEvent || eventKey.trim();
     const hasTBAKey = !requiresTBA || apiKey.trim();
     const hasNexusKey = !requiresNexus || nexusApiKey.trim();
-    
+
     const canLoad = hasEventKey && hasTBAKey && hasNexusKey;
-    
+
     switch (dataType) {
       case 'match-data':
         return (

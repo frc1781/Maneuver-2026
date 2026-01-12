@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useTBAData } from '@/core/hooks/useTBAData';
 import { useTBAMatchData } from '@/core/hooks/useTBAMatchData';
 import { MatchSelector, ProcessingResults } from '@/core/components/tba';
-import { 
+import {
   MatchDataLoader,
   DataStatusCard,
   DataOperationsCard,
@@ -37,29 +37,29 @@ const APIDataPage: React.FC = () => {
   // Get API keys from environment variables
   const apiKey = import.meta.env.VITE_TBA_API_KEY || '';
   const nexusApiKey = import.meta.env.VITE_NEXUS_API_KEY || '';
-  
+
   // Shared state for configuration
   const [eventKey, setEventKey] = useState('');
   const [dataType, setDataType] = useState<TBADataType>('match-data');
-  
+
   // Event data management
   const [clearingEventData, setClearingEventData] = useState(false);
   const [storedDataExists, setStoredDataExists] = useState(false);
-  
+
   // Event switch confirmation
   const [showEventSwitchDialog, setShowEventSwitchDialog] = useState(false);
-  const [pendingAction, setPendingAction] = useState<() => void>(() => {});
-  
+  const [pendingAction, setPendingAction] = useState<() => void>(() => { });
+
   // Processing results state
   const [processedResults, setProcessedResults] = useState<ProcessingResult[]>([]);
-  
+
   // Nexus data state
   const [pitDataLoading, setPitDataLoading] = useState(false);
   const [pitData, setPitData] = useState<{
     addresses: NexusPitAddresses | null;
     map: NexusPitMap | null;
   }>({ addresses: null, map: null });
-  
+
   // Debug Nexus state
   const [debugNexusLoading, setDebugNexusLoading] = useState(false);
   const [nexusEvents, setNexusEvents] = useState<Record<string, unknown> | null>(null);
@@ -120,13 +120,13 @@ const APIDataPage: React.FC = () => {
     setShowEventSwitchDialog(false);
     if (pendingAction) {
       pendingAction();
-      setPendingAction(() => {});
+      setPendingAction(() => { });
     }
   };
 
   const handleCancelEventSwitch = () => {
     setShowEventSwitchDialog(false);
-    setPendingAction(() => {});
+    setPendingAction(() => { });
   };
 
   const handleClearAllEventData = async () => {
@@ -162,8 +162,8 @@ const APIDataPage: React.FC = () => {
     }
 
     executeWithConfirmation(async () => {
-      await fetchMatchDataFromTBA(apiKey, eventKey, false, () => {});
-      
+      await fetchMatchDataFromTBA(apiKey, eventKey, false, () => { });
+
       // Update current event in localStorage after successful load
       setCurrentEvent(eventKey.trim());
     });
@@ -180,7 +180,7 @@ const APIDataPage: React.FC = () => {
       return;
     }
 
-    await loadMatchResults(apiKey, eventKey, false, () => {});
+    await loadMatchResults(apiKey, eventKey, false, () => { });
   };
 
   // const handleLoadValidationData = async () => {
@@ -196,7 +196,7 @@ const APIDataPage: React.FC = () => {
 
   //   executeWithConfirmation(async () => {
   //     await fetchValidationMatches(eventKey, apiKey);
-      
+
   //     // Update current event in localStorage after successful load
   //     setCurrentEvent(eventKey.trim());
   //   });
@@ -213,7 +213,7 @@ const APIDataPage: React.FC = () => {
       return;
     }
 
-    await loadEventTeams(apiKey, eventKey, false, () => {});
+    await loadEventTeams(apiKey, eventKey, false, () => { });
   };
 
   const handleLoadPitData = async () => {
@@ -231,64 +231,64 @@ const APIDataPage: React.FC = () => {
       setPitDataLoading(true);
       try {
         // First check if pit data is already stored
-      const storedData = getStoredPitData(eventKey);
-      if (storedData.addresses || storedData.map) {
-        setPitData(storedData);
-        toast.success('Loaded pit data from local storage');
-        
+        const storedData = getStoredPitData(eventKey);
+        if (storedData.addresses || storedData.map) {
+          setPitData(storedData);
+          toast.success('Loaded pit data from local storage');
+
+          // Update current event in localStorage after successful load
+          setCurrentEvent(eventKey.trim());
+
+          setPitDataLoading(false);
+          return;
+        }
+
+        // If not stored, fetch from Nexus API
+        const fetchedData = await getNexusPitData(eventKey, nexusApiKey);
+        setPitData(fetchedData);
+
+        // Store the data locally
+        storePitData(eventKey, fetchedData.addresses, fetchedData.map);
+
         // Update current event in localStorage after successful load
         setCurrentEvent(eventKey.trim());
-        
-        setPitDataLoading(false);
-        return;
-      }
 
-      // If not stored, fetch from Nexus API
-      const fetchedData = await getNexusPitData(eventKey, nexusApiKey);
-      setPitData(fetchedData);
-      
-      // Store the data locally
-      storePitData(eventKey, fetchedData.addresses, fetchedData.map);
-      
-      // Update current event in localStorage after successful load
-      setCurrentEvent(eventKey.trim());
-      
-      // Extract and store teams from pit addresses for pit assignments
-      let extractedTeamCount = 0;
-      if (fetchedData.addresses && Object.keys(fetchedData.addresses).length > 0) {
-        try {
-          const extractedTeams = extractAndStoreTeamsFromPitAddresses(eventKey, fetchedData.addresses);
-          extractedTeamCount = extractedTeams.length;
-          console.log(`Extracted ${extractedTeamCount} teams from pit addresses for pit assignments`);
-        } catch (error) {
-          console.warn('Failed to extract teams from pit addresses:', error);
+        // Extract and store teams from pit addresses for pit assignments
+        let extractedTeamCount = 0;
+        if (fetchedData.addresses && Object.keys(fetchedData.addresses).length > 0) {
+          try {
+            const extractedTeams = extractAndStoreTeamsFromPitAddresses(eventKey, fetchedData.addresses);
+            extractedTeamCount = extractedTeams.length;
+            console.log(`Extracted ${extractedTeamCount} teams from pit addresses for pit assignments`);
+          } catch (error) {
+            console.warn('Failed to extract teams from pit addresses:', error);
+          }
         }
+
+        const addressCount = fetchedData.addresses ? Object.keys(fetchedData.addresses).length : 0;
+        const hasMap = fetchedData.map !== null;
+
+        if (addressCount > 0 && hasMap) {
+          const message = extractedTeamCount > 0
+            ? `Loaded pit data: ${addressCount} addresses, pit map, and extracted ${extractedTeamCount} teams for pit assignments`
+            : `Loaded pit data: ${addressCount} addresses and pit map`;
+          toast.success(message);
+        } else if (addressCount > 0) {
+          const message = extractedTeamCount > 0
+            ? `Loaded ${addressCount} pit addresses and extracted ${extractedTeamCount} teams for pit assignments (no map available)`
+            : `Loaded ${addressCount} pit addresses (no map available)`;
+          toast.success(message);
+        } else if (hasMap) {
+          toast.warning('Loaded pit map but no team addresses found');
+        } else {
+          toast.warning('No pit data available for this event');
+        }
+      } catch (error) {
+        console.error('Error loading pit data:', error);
+        toast.error(error instanceof Error ? error.message : 'Failed to load pit data');
+      } finally {
+        setPitDataLoading(false);
       }
-      
-      const addressCount = fetchedData.addresses ? Object.keys(fetchedData.addresses).length : 0;
-      const hasMap = fetchedData.map !== null;
-      
-      if (addressCount > 0 && hasMap) {
-        const message = extractedTeamCount > 0 
-          ? `Loaded pit data: ${addressCount} addresses, pit map, and extracted ${extractedTeamCount} teams for pit assignments`
-          : `Loaded pit data: ${addressCount} addresses and pit map`;
-        toast.success(message);
-      } else if (addressCount > 0) {
-        const message = extractedTeamCount > 0
-          ? `Loaded ${addressCount} pit addresses and extracted ${extractedTeamCount} teams for pit assignments (no map available)`
-          : `Loaded ${addressCount} pit addresses (no map available)`;
-        toast.success(message);
-      } else if (hasMap) {
-        toast.warning('Loaded pit map but no team addresses found');
-      } else {
-        toast.warning('No pit data available for this event');
-      }
-    } catch (error) {
-      console.error('Error loading pit data:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to load pit data');
-    } finally {
-      setPitDataLoading(false);
-    }
     });
   };
 
@@ -300,7 +300,7 @@ const APIDataPage: React.FC = () => {
 
     setDebugNexusLoading(true);
     try {
-      const eventsData = await getNexusEvents(nexusApiKey);      
+      const eventsData = await getNexusEvents(nexusApiKey);
       const eventCount = Object.keys(eventsData).length;
       setNexusEvents(eventsData);
       toast.success(`Loaded ${eventCount} events from Nexus API`);
@@ -400,7 +400,7 @@ const APIDataPage: React.FC = () => {
       {dataType === 'match-results' && (
         <>
           <MatchSelector matches={matches} onProcessingComplete={handleProcessingComplete} />
-          
+
           {processedResults.length > 0 && (
             <ProcessingResults results={processedResults} />
           )}

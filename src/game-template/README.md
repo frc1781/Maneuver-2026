@@ -187,9 +187,40 @@ When starting a new season:
 4. **Update `gamification/achievements.ts`** - Define season-specific achievements
 5. **Update components** - Customize UI for the game
 
+### 7. Match Validation
+
+The Match Validation page compares scouted data against TBA results. To enable:
+
+**Required exports in `game-schema.ts`:**
+
+```typescript
+// Return all action keys that map to TBA breakdown
+export function getAllMappedActionKeys(): string[] {
+    return Object.keys(actions);
+}
+
+// Return all toggle keys that map to TBA breakdown
+export function getAllMappedToggleKeys(): string[] {
+    return Object.keys(toggles);
+}
+```
+
+**TBA API Key** - Set in `.env`:
+```
+VITE_TBA_API_KEY=your_tba_api_key_here
+```
+
+The validation compares:
+- **autoPoints** - Autonomous phase scores (generic TBA field)
+- **teleopPoints** - Teleop phase scores (generic TBA field)
+
+See [docs/MATCH_VALIDATION.md](../../docs/MATCH_VALIDATION.md) for full documentation.
+
 ---
 
 **Related Documentation:**
 - [docs/FRAMEWORK_DESIGN.md](../../docs/FRAMEWORK_DESIGN.md) - Architecture overview
 - [docs/DATA_TRANSFORMATION.md](../../docs/DATA_TRANSFORMATION.md) - Data flow details
 - [docs/ACHIEVEMENTS.md](../../docs/ACHIEVEMENTS.md) - Gamification system
+- [docs/MATCH_VALIDATION.md](../../docs/MATCH_VALIDATION.md) - Match validation feature
+
