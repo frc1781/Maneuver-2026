@@ -12,11 +12,44 @@
  * 
  * HOW TO CUSTOMIZE FOR YOUR GAME YEAR:
  * ====================================
- * 1. Update `actions` with your game's scoring actions
- * 2. Update `toggles` with your game's status toggles
- * 3. Update `strategyColumns` with display preferences
- * 4. Everything else updates automatically!
+ * 1. Update `workflowConfig` to enable/disable scouting pages
+ * 2. Update `actions` with your game's scoring actions
+ * 3. Update `toggles` with your game's status toggles
+ * 4. Update `strategyColumns` with display preferences
+ * 5. Everything else updates automatically!
  */
+
+// =============================================================================
+// WORKFLOW CONFIGURATION
+// =============================================================================
+
+/**
+ * Configure which pages are included in the scouting workflow.
+ * Set to `false` to skip a page entirely.
+ * 
+ * Examples:
+ * - Skip starting position: autoStart: false
+ * - Skip endgame: endgame: false  (teleop becomes submit page)
+ */
+export interface WorkflowConfig {
+    pages: {
+        autoStart: boolean;
+        autoScoring: boolean;
+        teleopScoring: boolean;
+        endgame: boolean;
+    };
+}
+
+export const workflowConfig: WorkflowConfig = {
+    pages: {
+        autoStart: true,      // Starting position selection page
+        autoScoring: true,    // Auto period scoring (required)
+        teleopScoring: true,  // Teleop period scoring (required)
+        endgame: true,        // Endgame page with status toggles & submit
+    },
+};
+
+export type WorkflowPage = keyof WorkflowConfig['pages'];
 
 // =============================================================================
 // ACTION DEFINITIONS

@@ -10,6 +10,27 @@ The maneuver-core framework uses a **slot-based architecture** where game-specif
 - ✅ Easily update for new game years
 - ✅ Maintain framework updates without merge conflicts
 - ✅ Keep clear separation between framework and game logic
+- ✅ Skip entire pages via workflow configuration
+
+## Workflow Configuration
+
+Teams can enable/disable scouting pages by editing `workflowConfig` in `game-schema.ts`:
+
+```typescript
+export const workflowConfig: WorkflowConfig = {
+  pages: {
+    autoStart: true,      // Skip starting position selection
+    autoScoring: true,    // Auto period scoring
+    teleopScoring: true,  // Teleop period scoring
+    endgame: true,        // Skip endgame (teleop becomes submit)
+  },
+};
+```
+
+Any page can be the "submit" page—the last enabled page shows "Submit Match Data" automatically.
+
+> [!NOTE]
+> See [SCOUTING_WORKFLOW.md](./SCOUTING_WORKFLOW.md) for full workflow configuration details.
 
 ## Game-Specific Component Locations
 

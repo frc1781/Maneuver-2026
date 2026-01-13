@@ -6,11 +6,17 @@ import { Badge } from "@/core/components/ui/badge";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { AutoStartFieldSelector } from "@/game-template/components";
+import { useWorkflowNavigation } from "@/core/hooks/useWorkflowNavigation";
+import { submitMatchData } from "@/core/lib/submitMatch";
+import { useGame } from "@/core/contexts/GameContext";
 
 const AutoStartPage = () => {
+  const { transformation } = useGame();
   const location = useLocation();
   const navigate = useNavigate();
   const states = location.state;
+  const { getNextRoute, getPrevRoute, isLastPage } = useWorkflowNavigation();
+  const isSubmitPage = isLastPage('autoStart');
 
   const [startPos1, setStartPos1] = useState(
     states?.inputs?.startPoses?.[0] || null
@@ -58,7 +64,8 @@ const AutoStartPage = () => {
   };
 
   const handleBack = () => {
-    navigate("/game-start", {
+    const prevRoute = getPrevRoute('autoStart') || '/game-start';
+    navigate(prevRoute, {
       state: {
         inputs: {
           ...(states?.inputs || {}),
@@ -70,20 +77,36 @@ const AutoStartPage = () => {
     });
   };
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (!validateInputs()) return;
 
-    navigate("/auto-scoring", {
-      state: {
-        inputs: {
-          ...(states?.inputs || {}),
-          startPosition: startPosition.every((pos) => pos === false)
-            ? [null, null, null, null, null, null]
-            : startPosition,
+    // Update inputs with start position
+    const updatedInputs = {
+      ...(states?.inputs || {}),
+      startPosition: startPosition.every((pos) => pos === false)
+        ? [null, null, null, null, null, null]
+        : startPosition,
+    };
+
+    if (isSubmitPage) {
+      // This is the last page - submit match data
+      // Save start position to localStorage for submitMatch
+      localStorage.setItem('startPosition', JSON.stringify(updatedInputs.startPosition));
+      const success = await submitMatchData({
+        inputs: updatedInputs,
+        transformation,
+        onSuccess: () => navigate('/game-start'),
+      });
+      if (!success) return;
+    } else {
+      const nextRoute = getNextRoute('autoStart') || '/auto-scoring';
+      navigate(nextRoute, {
+        state: {
+          inputs: updatedInputs,
+          ...(states?.rescout && { rescout: states.rescout }),
         },
-        ...(states?.rescout && { rescout: states.rescout }),
-      },
-    });
+      });
+    }
   };
 
   const selectedPosition = startPosition.findIndex(pos => pos === true);
@@ -95,7 +118,7 @@ const AutoStartPage = () => {
         <h1 className="text-2xl font-bold pb-4 xl:text-3xl 2xl:text-4xl xl:pb-6">Auto Start</h1>
       </div>
       <div className="flex flex-col lg:flex-row items-start gap-6 xl:gap-8 2xl:gap-10 max-w-7xl xl:max-w-360 2xl:max-w-400 w-full flex-1">
-        
+
         {/* Field Map Section - Game-Specific Component */}
         <div className="w-full lg:flex-1">
           <AutoStartFieldSelector
@@ -107,7 +130,7 @@ const AutoStartPage = () => {
 
         {/* Instructions and Controls */}
         <div className="flex flex-col gap-4 lg:gap-6 w-full lg:w-80 xl:w-96 2xl:w-104 lg:h-full pb-4 lg:pb-0">
-          
+
           {/* Match Info Card */}
           {states?.inputs && (
             <Card>
@@ -121,7 +144,7 @@ const AutoStartPage = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Alliance:</span>
-                  <Badge 
+                  <Badge
                     variant={states.inputs.alliance === "red" ? "destructive" : "default"}
                     className={states.inputs.alliance === "blue" ? "bg-blue-500 text-white" : "bg-red-500 text-white"}
                   >
@@ -191,10 +214,10 @@ const AutoStartPage = () => {
             </Button>
             <Button
               onClick={handleProceed}
-              className="flex-2 h-12 text-lg font-semibold"
+              className={`flex-2 h-12 text-lg font-semibold ${isSubmitPage ? 'bg-green-600 hover:bg-green-700' : ''}`}
               disabled={!hasSelection}
             >
-              Continue to Auto
+              {isSubmitPage ? 'Submit Match Data' : 'Continue to Auto'}
             </Button>
           </div>
         </div>

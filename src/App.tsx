@@ -58,6 +58,7 @@ import { strategyAnalysis } from "@/game-template/analysis";
 import { scoringCalculations } from "@/game-template/scoring";
 import { gameDataTransformation } from "@/game-template/transformation";
 import { StatusToggles } from "@/game-template/components";
+import logo from "../src/assets/Maneuver Wordmark Vertical.png";
 
 // Mock implementations for missing template parts
 const mockConfig = { year: 2025, gameName: "Template Game", scoring: { auto: {}, teleop: {}, endgame: {} } };
@@ -82,7 +83,7 @@ function App() {
           </GameProvider>
         }
       >
-        <Route index element={<HomePage />} />
+        <Route index element={<HomePage logo={logo} />} />
         <Route path="/game-start" element={<GameStartPage />} />
         <Route path="/auto-start" element={<AutoStartPage />} />
         <Route path="/auto-scoring" element={<AutoScoringPage />} />

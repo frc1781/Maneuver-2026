@@ -6,11 +6,17 @@ import { Badge } from "@/core/components/ui/badge";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
 import { ScoringSections, StatusToggles } from "@/game-template/components";
+import { useWorkflowNavigation } from "@/core/hooks/useWorkflowNavigation";
+import { submitMatchData } from "@/core/lib/submitMatch";
+import { useGame } from "@/core/contexts/GameContext";
 
 const AutoScoringPage = () => {
+  const { transformation } = useGame();
   const location = useLocation();
   const navigate = useNavigate();
   const states = location.state;
+  const { getNextRoute, getPrevRoute, isLastPage } = useWorkflowNavigation();
+  const isSubmitPage = isLastPage('autoScoring');
 
   const getSavedState = () => {
     const saved = localStorage.getItem("autoStateStack");
@@ -83,7 +89,8 @@ const AutoScoringPage = () => {
   };
 
   const handleBack = () => {
-    navigate("/auto-start", {
+    const prevRoute = getPrevRoute('autoScoring') || '/auto-start';
+    navigate(prevRoute, {
       state: {
         inputs: states?.inputs,
         ...(states?.rescout && { rescout: states.rescout }),
@@ -91,15 +98,26 @@ const AutoScoringPage = () => {
     });
   };
 
-  const handleProceed = () => {
-    navigate("/teleop-scoring", {
-      state: {
+  const handleProceed = async () => {
+    if (isSubmitPage) {
+      // This is the last page - submit match data
+      const success = await submitMatchData({
         inputs: states?.inputs,
-        autoStateStack: scoringActions,
-        autoRobotStatus: robotStatus,
-        ...(states?.rescout && { rescout: states.rescout }),
-      },
-    });
+        transformation,
+        onSuccess: () => navigate('/game-start'),
+      });
+      if (!success) return;
+    } else {
+      const nextRoute = getNextRoute('autoScoring') || '/teleop-scoring';
+      navigate(nextRoute, {
+        state: {
+          inputs: states?.inputs,
+          autoStateStack: scoringActions,
+          autoRobotStatus: robotStatus,
+          ...(states?.rescout && { rescout: states.rescout }),
+        },
+      });
+    }
   };
 
   return (
@@ -130,9 +148,9 @@ const AutoScoringPage = () => {
             </Button>
             <Button
               onClick={handleProceed}
-              className="flex-2 h-12 text-lg font-semibold"
+              className={`flex-2 h-12 text-lg font-semibold ${isSubmitPage ? 'bg-green-600 hover:bg-green-700' : ''}`}
             >
-              Continue to Teleop
+              {isSubmitPage ? 'Submit Match Data' : 'Continue to Teleop'}
               <ArrowRight className="ml-0.5" />
             </Button>
           </div>
@@ -236,9 +254,9 @@ const AutoScoringPage = () => {
               </Button>
               <Button
                 onClick={handleProceed}
-                className="flex-2 h-12 text-lg font-semibold"
+                className={`flex-2 h-12 text-lg font-semibold ${isSubmitPage ? 'bg-green-600 hover:bg-green-700' : ''}`}
               >
-                Continue to Teleop
+                {isSubmitPage ? 'Submit Match Data' : 'Continue to Teleop'}
                 <ArrowRight className="ml-0.5" />
               </Button>
             </div>

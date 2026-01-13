@@ -32,6 +32,20 @@ game-template/
 
 **The single source of truth for game-specific configuration:**
 
+#### Workflow Configuration
+```typescript
+export const workflowConfig: WorkflowConfig = {
+  pages: {
+    autoStart: true,      // Starting position selection
+    autoScoring: true,    // Auto period scoring
+    teleopScoring: true,  // Teleop period scoring
+    endgame: true,        // Endgame status and submit
+  },
+};
+```
+Set any page to `false` to skip it. The last enabled page becomes the submit page.
+
+#### Actions and Toggles
 ```typescript
 export const actions: ActionDefinition[] = [
     {

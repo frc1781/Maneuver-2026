@@ -7,9 +7,9 @@ import { Textarea } from "@/core/components/ui/textarea";
 import { Label } from "@/core/components/ui/label";
 import { toast } from "sonner";
 import { ArrowRight } from "lucide-react";
-import { db } from "@/core/db/database";
-import { clearScoutingLocalStorage } from "@/core/lib/utils";
 import { useGame } from "@/core/contexts/GameContext";
+import { useWorkflowNavigation } from "@/core/hooks/useWorkflowNavigation";
+import { submitMatchData } from "@/core/lib/submitMatch";
 
 const EndgamePage = () => {
   const { ui, transformation } = useGame();
@@ -17,6 +17,7 @@ const EndgamePage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const states = location.state;
+  const { getPrevRoute } = useWorkflowNavigation();
 
   const [robotStatus, setRobotStatus] = useState(() => {
     const saved = localStorage.getItem("endgameRobotStatus");
@@ -33,100 +34,21 @@ const EndgamePage = () => {
     toast.success("Status updated");
   };
 
-  const getActionsFromLocalStorage = (phase: string) => {
-    const saved = localStorage.getItem(`${phase}StateStack`);
-    return saved ? JSON.parse(saved) : [];
-  };
-
-  const getRobotStatusFromLocalStorage = (phase: string) => {
-    const saved = localStorage.getItem(`${phase}RobotStatus`);
-    return saved ? JSON.parse(saved) : {};
-  };
-
   const handleSubmit = async () => {
-    try {
-      const autoActions = getActionsFromLocalStorage("auto");
-      const teleopActions = getActionsFromLocalStorage("teleop");
-      const autoRobotStatus = getRobotStatusFromLocalStorage("auto");
-      const teleopRobotStatus = getRobotStatusFromLocalStorage("teleop");
+    // Save endgame status to localStorage so submitMatch can access it
+    localStorage.setItem("endgameRobotStatus", JSON.stringify(robotStatus));
 
-      // Extract match data from states
-      const eventKey = states?.inputs?.eventKey || localStorage.getItem("eventKey") || "";
-      const matchNumberStr = states?.inputs?.matchNumber || "";
-      const matchType = states?.inputs?.matchType || "qm";
-      const teamNumberStr = states?.inputs?.selectTeam || "";
-      const allianceColor = states?.inputs?.alliance || "red";
-
-      // Build matchKey based on matchType
-      let matchKey: string;
-      let matchNumber: number;
-
-      if (matchType === "qm") {
-        // Qualification match: qm24
-        matchKey = `qm${matchNumberStr}`;
-        matchNumber = parseInt(matchNumberStr) || 0;
-      } else if (matchType === "sf") {
-        // Semifinal: user enters "1" → becomes "sf1m1"
-        matchKey = `sf${matchNumberStr}m1`;
-        matchNumber = parseInt(matchNumberStr) || 0;
-      } else if (matchType === "f") {
-        // Final: user enters "2" → becomes "f1m2"
-        matchKey = `f1m${matchNumberStr}`;
-        matchNumber = parseInt(matchNumberStr) || 0;
-      } else {
-        // Fallback
-        matchKey = `qm${matchNumberStr}`;
-        matchNumber = parseInt(matchNumberStr) || 0;
-      }
-
-      // Transform action arrays to counter fields using game-specific transformation
-      const transformedGameData = transformation.transformActionsToCounters({
-        autoActions,
-        teleopActions,
-        autoRobotStatus,
-        teleopRobotStatus,
-        endgameRobotStatus: robotStatus,
-        startPosition: states?.inputs?.startPosition,
-      });
-
-      // Create the scouting entry with proper structure matching ScoutingEntryBase from /src/types/
-      // Using Record to bypass type checking since database still uses old structure
-      const scoutingEntry: Record<string, unknown> = {
-        id: `${eventKey}::${matchKey}::${teamNumberStr}::${allianceColor}`,
-        scoutName: states?.inputs?.scoutName || "",
-        teamNumber: parseInt(teamNumberStr) || 0,
-        matchNumber: matchNumber || 0,
-        eventKey: eventKey,
-        matchKey: matchKey,
-        allianceColor: allianceColor as 'red' | 'blue',
-        timestamp: Date.now(),
-        gameData: transformedGameData, // Store transformed counter fields (not action arrays)
-        comments: comment, // Comments comes last - final field in match timeline
-      };
-
-      // Save to database (cast to any since we're using new structure but database expects old)
-      await db.scoutingData.put(scoutingEntry as never);
-
-      // Clear action stacks and robot status
-      clearScoutingLocalStorage();
-
-      // Update match counter
-      const currentMatchNumber = localStorage.getItem("currentMatchNumber") || "1";
-      const nextMatchNumber = (parseInt(currentMatchNumber) + 1).toString();
-      localStorage.setItem("currentMatchNumber", nextMatchNumber);
-
-      toast.success("Match data saved successfully!");
-
-      // Navigate back to game-start
-      navigate("/game-start");
-    } catch (error) {
-      console.error("Error saving match data:", error);
-      toast.error("Error saving match data");
-    }
+    await submitMatchData({
+      inputs: states?.inputs,
+      transformation,
+      comment,
+      onSuccess: () => navigate('/game-start'),
+    });
   };
 
   const handleBack = () => {
-    navigate("/teleop-scoring", {
+    const prevRoute = getPrevRoute('endgame') || '/teleop-scoring';
+    navigate(prevRoute, {
       state: {
         ...states,
         endgameData: {

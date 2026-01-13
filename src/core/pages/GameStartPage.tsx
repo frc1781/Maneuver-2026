@@ -18,11 +18,13 @@ import GameStartSelectTeam from "@/core/components/GameStartComponents/GameStart
 import { EventNameSelector } from "@/core/components/GameStartComponents/EventNameSelector";
 import { createMatchPrediction, getPredictionForMatch } from "@/core/lib/scoutGamificationUtils";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { useWorkflowNavigation } from "@/core/hooks/useWorkflowNavigation";
 
 const GameStartPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const states = location.state;
+  const { getNextRoute, isConfigValid } = useWorkflowNavigation();
 
   // Detect re-scout mode from location.state - use useMemo to recalculate when location.state changes
   const rescoutData = useMemo(() => states?.rescout, [states]);
@@ -172,6 +174,12 @@ const GameStartPage = () => {
   };
 
   const validateInputs = () => {
+    // Check workflow config is valid
+    if (!isConfigValid) {
+      toast.error("Workflow configuration error: At least one scouting page must be enabled");
+      return false;
+    }
+
     const currentScout = getCurrentScout();
     const inputs = {
       matchNumber,
@@ -223,7 +231,8 @@ const GameStartPage = () => {
     localStorage.setItem("autoStateStack", JSON.stringify([]));
     localStorage.setItem("teleopStateStack", JSON.stringify([]));
 
-    navigate("/auto-start", {
+    const nextRoute = getNextRoute('gameStart') || '/auto-scoring';
+    navigate(nextRoute, {
       state: {
         inputs: {
           matchNumber,

@@ -27,6 +27,7 @@ This folder contains documentation for teams using the maneuver-core framework t
 - 🎯 **[PICK_LISTS.md](PICK_LISTS.md)** - Alliance selection pick lists
 - ✅ **[MATCH_VALIDATION.md](MATCH_VALIDATION.md)** - Compare scouted data vs TBA results
 - 🏅 **[ACHIEVEMENTS.md](ACHIEVEMENTS.md)** - Scout achievements system
+- 🎮 **[SCOUTING_WORKFLOW.md](SCOUTING_WORKFLOW.md)** - Match scouting 5-step workflow
 - 👥 **[SCOUT_MANAGEMENT.md](SCOUT_MANAGEMENT.md)** - Scout dashboard and profiles
 - 📋 **[PIT_SCOUTING.md](PIT_SCOUTING.md)** - Pit scouting data collection
 - 🗑️ **[CLEAR_DATA.md](CLEAR_DATA.md)** - Data clearing utilities
