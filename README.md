@@ -9,7 +9,7 @@
 | Repository | Description | Status |
 |------------|-------------|--------|
 | **maneuver-core** | Framework template (this repo) | Template |
-| **Maneuver** | 2025 Reefscape implementation | [Live App](https://github.com/ShinyShips/Maneuver) |
+| **Maneuver-2025** | 2025 Reefscape implementation (pre-creation of this template) | [Live App](https://github.com/ShinyShips/Maneuver-2025) |
 
 > **Note:** The `Maneuver` repo will be renamed to `maneuver-2025` to follow the year-based naming convention.
 
