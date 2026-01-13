@@ -1,6 +1,8 @@
-# Hooks Guide
+# Utility Hooks
 
-This guide covers all the custom React hooks provided by the maneuver-core framework.
+This guide covers the **utility** React hooks provided by maneuver-core. These are general-purpose hooks for responsive design, state management, navigation, and keyboard shortcuts.
+
+> For a complete list of all hooks, see [HOOKS_REFERENCE.md](./HOOKS_REFERENCE.md).
 
 ## Table of Contents
 

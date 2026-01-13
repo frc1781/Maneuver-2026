@@ -90,6 +90,48 @@ const {
 } = useScoutDashboard();
 ```
 
+### useScoutManagement
+
+**Location:** `src/core/hooks/useScoutManagement.ts`
+
+Manages the list of scouts and current scout selection.
+
+```typescript
+const {
+    currentScout,       // Current scout name
+    currentScoutStakes, // Stakes of current scout
+    scoutsList,         // Array of all scout names
+    saveScout,          // Add/switch to a scout
+    removeScout,        // Remove a scout
+    loadScouts          // Reload scouts from storage
+} = useScoutManagement();
+
+// Add a new scout and switch to them
+saveScout("Marcus Rodriguez");
+
+// Remove a scout
+removeScout("Old Scout");
+```
+
+### useCurrentScout
+
+**Location:** `src/core/hooks/useCurrentScout.ts`
+
+Gets the full Scout object for the currently selected scout.
+
+```typescript
+const {
+    currentScout,  // Full Scout object (or null)
+    isLoading,     // Loading state
+    refreshScout   // Refresh scout data from DB
+} = useCurrentScout();
+
+// Access scout properties
+if (currentScout) {
+    console.log(currentScout.name, currentScout.stakes);
+}
+```
+
 ## Calculations
 
 ### Accuracy Calculation
