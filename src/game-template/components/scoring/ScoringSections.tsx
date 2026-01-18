@@ -12,23 +12,29 @@ import { AutoPathTracker } from "@/game-template/components/auto-path";
 
 interface ScoringSectionsProps {
   phase: 'auto' | 'teleop';
-  onAddAction: (action: any) => void;
-  actions: any[];
+  onAddAction: (action: any) => void; // Accepts action object
+  actions: any[]; // Array of timestamped action objects
+  // Optional props for game-specific implementations
   status?: any;
+  onStatusUpdate?: (updates: Partial<any>) => void;
   onUndo?: () => void;
   canUndo?: boolean;
-  onBack?: () => void;
-  onProceed?: () => void;
+  // Navigation props (for full-screen implementations)
   matchNumber?: string | number;
   matchType?: 'qm' | 'sf' | 'f';
   teamNumber?: string | number;
+  onBack?: () => void;
+  onProceed?: () => void;
 }
 
 export function ScoringSections({
   phase,
   onAddAction,
   actions = [],
+  // Optional props - used by game-specific implementations
   status: _status, // TODO: Use for teleop defense zone toggle
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onStatusUpdate: _onStatusUpdate,
   onUndo,
   canUndo = false,
   matchNumber,

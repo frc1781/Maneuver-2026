@@ -7,10 +7,10 @@
  */
 
 import { useMemo, useCallback } from 'react';
-import { workflowConfig, type WorkflowPage } from '@/game-template/game-schema';
+import { workflowConfig, type WorkflowRoutePage } from '@/game-template/game-schema';
 
-// Page route mappings
-const PAGE_ROUTES: Record<WorkflowPage | 'gameStart', string> = {
+// Page route mappings (only includes routable pages, not visibility flags)
+const PAGE_ROUTES: Record<WorkflowRoutePage | 'gameStart', string> = {
     gameStart: '/game-start',
     autoStart: '/auto-start',
     autoScoring: '/auto-scoring',
@@ -19,7 +19,7 @@ const PAGE_ROUTES: Record<WorkflowPage | 'gameStart', string> = {
 };
 
 // Ordered list of all possible pages
-const ALL_PAGES: (WorkflowPage | 'gameStart')[] = [
+const ALL_PAGES: (WorkflowRoutePage | 'gameStart')[] = [
     'gameStart',
     'autoStart',
     'autoScoring',
@@ -29,31 +29,31 @@ const ALL_PAGES: (WorkflowPage | 'gameStart')[] = [
 
 export interface WorkflowNavigation {
     /** Ordered list of enabled pages */
-    enabledPages: (WorkflowPage | 'gameStart')[];
+    enabledPages: (WorkflowRoutePage | 'gameStart')[];
 
     /** Get the next page in the workflow, or null if this is the last page */
-    getNextPage: (currentPage: WorkflowPage | 'gameStart') => (WorkflowPage | 'gameStart') | null;
+    getNextPage: (currentPage: WorkflowRoutePage | 'gameStart') => (WorkflowRoutePage | 'gameStart') | null;
 
     /** Get the previous page in the workflow, or null if this is the first page */
-    getPrevPage: (currentPage: WorkflowPage | 'gameStart') => (WorkflowPage | 'gameStart') | null;
+    getPrevPage: (currentPage: WorkflowRoutePage | 'gameStart') => (WorkflowRoutePage | 'gameStart') | null;
 
     /** Check if the given page is the last page (should show submit button) */
-    isLastPage: (currentPage: WorkflowPage | 'gameStart') => boolean;
+    isLastPage: (currentPage: WorkflowRoutePage | 'gameStart') => boolean;
 
     /** Check if the given page is the first page */
-    isFirstPage: (currentPage: WorkflowPage | 'gameStart') => boolean;
+    isFirstPage: (currentPage: WorkflowRoutePage | 'gameStart') => boolean;
 
     /** Get the route path for a page */
-    getRoute: (page: WorkflowPage | 'gameStart') => string;
+    getRoute: (page: WorkflowRoutePage | 'gameStart') => string;
 
     /** Get the route for the next page */
-    getNextRoute: (currentPage: WorkflowPage | 'gameStart') => string | null;
+    getNextRoute: (currentPage: WorkflowRoutePage | 'gameStart') => string | null;
 
     /** Get the route for the previous page */
-    getPrevRoute: (currentPage: WorkflowPage | 'gameStart') => string | null;
+    getPrevRoute: (currentPage: WorkflowRoutePage | 'gameStart') => string | null;
 
     /** Check if a specific page is enabled */
-    isPageEnabled: (page: WorkflowPage) => boolean;
+    isPageEnabled: (page: WorkflowRoutePage) => boolean;
 
     /** Whether the workflow config is valid (at least one scoring page enabled) */
     isConfigValid: boolean;
@@ -73,7 +73,7 @@ export function useWorkflowNavigation(): WorkflowNavigation {
         });
     }, []);
 
-    const getNextPage = useCallback((currentPage: WorkflowPage | 'gameStart'): (WorkflowPage | 'gameStart') | null => {
+    const getNextPage = useCallback((currentPage: WorkflowRoutePage | 'gameStart'): (WorkflowRoutePage | 'gameStart') | null => {
         const currentIndex = enabledPages.indexOf(currentPage);
         if (currentIndex === -1 || currentIndex === enabledPages.length - 1) {
             return null;
@@ -81,7 +81,7 @@ export function useWorkflowNavigation(): WorkflowNavigation {
         return enabledPages[currentIndex + 1] ?? null;
     }, [enabledPages]);
 
-    const getPrevPage = useCallback((currentPage: WorkflowPage | 'gameStart'): (WorkflowPage | 'gameStart') | null => {
+    const getPrevPage = useCallback((currentPage: WorkflowRoutePage | 'gameStart'): (WorkflowRoutePage | 'gameStart') | null => {
         const currentIndex = enabledPages.indexOf(currentPage);
         if (currentIndex <= 0) {
             return null;
@@ -89,31 +89,31 @@ export function useWorkflowNavigation(): WorkflowNavigation {
         return enabledPages[currentIndex - 1] ?? null;
     }, [enabledPages]);
 
-    const isLastPage = useCallback((currentPage: WorkflowPage | 'gameStart') => {
+    const isLastPage = useCallback((currentPage: WorkflowRoutePage | 'gameStart') => {
         const currentIndex = enabledPages.indexOf(currentPage);
         return currentIndex === enabledPages.length - 1;
     }, [enabledPages]);
 
-    const isFirstPage = useCallback((currentPage: WorkflowPage | 'gameStart') => {
+    const isFirstPage = useCallback((currentPage: WorkflowRoutePage | 'gameStart') => {
         const currentIndex = enabledPages.indexOf(currentPage);
         return currentIndex === 0;
     }, [enabledPages]);
 
-    const getRoute = useCallback((page: WorkflowPage | 'gameStart') => {
+    const getRoute = useCallback((page: WorkflowRoutePage | 'gameStart') => {
         return PAGE_ROUTES[page];
     }, []);
 
-    const getNextRoute = useCallback((currentPage: WorkflowPage | 'gameStart') => {
+    const getNextRoute = useCallback((currentPage: WorkflowRoutePage | 'gameStart') => {
         const nextPage = getNextPage(currentPage);
         return nextPage ? PAGE_ROUTES[nextPage] : null;
     }, [getNextPage]);
 
-    const getPrevRoute = useCallback((currentPage: WorkflowPage | 'gameStart') => {
+    const getPrevRoute = useCallback((currentPage: WorkflowRoutePage | 'gameStart') => {
         const prevPage = getPrevPage(currentPage);
         return prevPage ? PAGE_ROUTES[prevPage] : null;
     }, [getPrevPage]);
 
-    const isPageEnabled = useCallback((page: WorkflowPage) => {
+    const isPageEnabled = useCallback((page: WorkflowRoutePage) => {
         return workflowConfig.pages[page] !== false;
     }, []);
 

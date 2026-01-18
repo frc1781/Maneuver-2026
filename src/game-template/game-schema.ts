@@ -31,9 +31,9 @@ export interface WorkflowConfig {
         autoScoring: boolean;
         teleopScoring: boolean;
         endgame: boolean;
-        showAutoStatus: boolean;
-        showTeleopStatus: boolean;
-        showEndgameStatus: boolean;
+        showAutoStatus: boolean;    // Show robot status card on Auto page
+        showTeleopStatus: boolean;  // Show robot status card on Teleop page
+        showEndgameStatus: boolean; // Show robot status card on Endgame page
     };
 }
 
@@ -42,14 +42,17 @@ export const workflowConfig: WorkflowConfig = {
         autoStart: false,      // Starting position selection page
         autoScoring: true,    // Auto period scoring (required)
         teleopScoring: true,  // Teleop period scoring (required)
-        endgame: true,        // Endgame page with climb selection & submit
-        showAutoStatus: false, // Hide robot status on Auto (requested)
-        showTeleopStatus: true,
-        showEndgameStatus: true,
+        endgame: true,        // Endgame page with status toggles & submit
+        showAutoStatus: true,    // Show robot status on Auto (set false to hide)
+        showTeleopStatus: true,  // Show robot status on Teleop
+        showEndgameStatus: true, // Show robot status on Endgame
     },
 };
 
 export type WorkflowPage = keyof WorkflowConfig['pages'];
+
+// Pages that have actual routes (excludes visibility flags)
+export type WorkflowRoutePage = 'autoStart' | 'autoScoring' | 'teleopScoring' | 'endgame';
 
 // =============================================================================
 // ZONE DEFINITIONS (for field overlay UI)
