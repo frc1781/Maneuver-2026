@@ -401,6 +401,7 @@ export interface UIComponents<T extends ScoutingEntryBase> {
     status: any;
     onStatusUpdate: (updates: any) => void;
   }>;
+  PitScoutingQuestions?: React.ComponentType<PitScoutingQuestionsProps>; // OPTIONAL - game-specific pit scouting questions
 }
 
 /**
@@ -455,6 +456,17 @@ export interface ScoringScreenProps<T extends ScoutingEntryBase> {
   onBack: () => void;
   onCancel?: () => void; // Optional: User wants to exit and discard current entry
   onSave?: (entry: T) => Promise<void>; // Optional: Endgame screen saves and returns to GameStart
+}
+
+/**
+ * Props for PitScoutingQuestions component
+ * 
+ * Game-specific pit scouting questions receive gameData and onGameDataChange
+ * to manage their custom fields within the pit scouting form.
+ */
+export interface PitScoutingQuestionsProps {
+  gameData: Record<string, any>;
+  onGameDataChange: (updates: Record<string, any>) => void;
 }
 
 /**

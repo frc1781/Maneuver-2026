@@ -48,6 +48,9 @@ export interface ScoutingEntryBase<TGameData = Record<string, unknown>> {
   /** Optional notes from scout */
   comments?: string;
 
+  /** Robot did not show up for this match */
+  noShow?: boolean;
+
   // === Correction Tracking ===
   // These fields support re-scouting workflows for data quality
 

@@ -4,8 +4,9 @@ interface StatCardProps {
     title: string;
     value: string | number;
     subtitle?: string;
-    color?: 'default' | 'green' | 'blue' | 'purple' | 'orange' | 'red' | 'yellow';
-    compareValue?: number;
+    color?: 'default' | 'green' | 'blue' | 'purple' | 'orange' | 'red' | 'yellow' | 'slate';
+    compareValue?: number | string;
+    type?: 'number' | 'percentage' | 'text';
 }
 
 /**
@@ -21,9 +22,11 @@ export const StatCard = ({
     color = "blue",
     compareValue,
     type = 'number'
-}: StatCardProps & { type?: 'number' | 'percentage' }) => {
+}: StatCardProps) => {
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
-    const diff = compareValue !== undefined ? numValue - compareValue : undefined;
+    const diff = compareValue !== undefined && type !== 'text' 
+        ? numValue - (typeof compareValue === 'number' ? compareValue : parseFloat(String(compareValue))) 
+        : undefined;
 
     // Map color names to Tailwind classes
     const colorClasses: Record<string, string> = {
@@ -34,9 +37,13 @@ export const StatCard = ({
         orange: 'text-orange-600',
         red: 'text-red-600',
         yellow: 'text-yellow-600',
+        slate: 'text-slate-600',
     };
 
     const formatValue = (val: string | number) => {
+        if (type === 'text') {
+            return String(val);
+        }
         if (type === 'percentage') {
             return `${val}%`;
         }
@@ -59,10 +66,15 @@ export const StatCard = ({
                     <p className={`text-2xl font-bold ${colorClasses[color] || colorClasses.default}`}>
                         {formatValue(value)}
                     </p>
-                    {diff !== undefined && (
+                    {diff !== undefined && !isNaN(diff) && (
                         <div className={`flex items-center text-sm font-semibold ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-muted-foreground'
                             }`}>
                             {formatDiff(diff)}
+                        </div>
+                    )}
+                    {type === 'text' && compareValue && compareValue !== value && (
+                        <div className="text-sm text-muted-foreground">
+                            vs {compareValue}
                         </div>
                     )}
                 </div>

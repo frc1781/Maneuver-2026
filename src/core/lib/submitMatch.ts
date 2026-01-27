@@ -27,6 +27,8 @@ interface SubmitOptions {
     transformation: DataTransformation;
     /** Optional comment */
     comment?: string;
+    /** Flag for no-show submission (robot did not appear for match) */
+    noShow?: boolean;
     /** Callback on successful submission */
     onSuccess?: () => void;
     /** Callback on error */
@@ -75,27 +77,60 @@ function buildMatchKey(matchType: string, matchNumber: string): { matchKey: stri
  * 2. Transforms actions to counter fields using game transformation
  * 3. Saves the entry to IndexedDB
  * 4. Clears localStorage and increments match number
+ * 
+ * @param options.noShow - If true, submits a minimal entry with noShow flag and skips data collection
  */
 export async function submitMatchData({
     inputs,
     transformation,
     comment = '',
+    noShow = false,
     onSuccess,
     onError,
 }: SubmitOptions): Promise<boolean> {
     try {
+        // Build match key
+        const { matchKey, numericMatch } = buildMatchKey(
+            inputs.matchType || 'qm',
+            inputs.matchNumber
+        );
+
+        // For no-show, skip data collection and submit minimal entry
+        if (noShow) {
+            const entry: Record<string, unknown> = {
+                id: `${inputs.eventKey}::${matchKey}::${inputs.selectTeam}::${inputs.alliance}`,
+                scoutName: inputs.scoutName || '',
+                teamNumber: parseInt(inputs.selectTeam) || 0,
+                matchNumber: numericMatch,
+                eventKey: inputs.eventKey,
+                matchKey: matchKey,
+                allianceColor: inputs.alliance,
+                timestamp: Date.now(),
+                noShow: true,
+                comments: comment || 'No Show - Robot did not appear for this match',
+                gameData: {
+                    auto: { startPosition: inputs.startPosition },
+                    teleop: {},
+                    endgame: {},
+                },
+            };
+
+            await db.scoutingData.put(entry as never);
+            toast.success('No-show match submitted');
+            clearScoutingLocalStorage();
+            
+            if (onSuccess) {
+                onSuccess();
+            }
+            return true;
+        }
+
         // Get all phase data from localStorage
         const autoActions = getActionsFromLocalStorage('auto');
         const teleopActions = getActionsFromLocalStorage('teleop');
         const autoRobotStatus = getRobotStatusFromLocalStorage('auto');
         const teleopRobotStatus = getRobotStatusFromLocalStorage('teleop');
         const endgameRobotStatus = getRobotStatusFromLocalStorage('endgame');
-
-        // Build match key
-        const { matchKey, numericMatch } = buildMatchKey(
-            inputs.matchType || 'qm',
-            inputs.matchNumber
-        );
 
         // Transform action arrays to counter fields using game-specific transformation
         const transformedGameData = transformation.transformActionsToCounters({

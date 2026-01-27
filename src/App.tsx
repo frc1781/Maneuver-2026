@@ -57,7 +57,7 @@ import { GameProvider } from "@/core/contexts/GameContext";
 import { strategyAnalysis } from "@/game-template/analysis";
 import { scoringCalculations } from "@/game-template/scoring";
 import { gameDataTransformation } from "@/game-template/transformation";
-import { StatusToggles } from "@/game-template/components";
+import { StatusToggles, GameSpecificQuestions } from "@/game-template/components";
 import logo from "../src/assets/Maneuver Wordmark Vertical.png";
 
 // Mock implementations for missing template parts
@@ -77,7 +77,7 @@ function App() {
             validation={mockValidation as any}
             analysis={strategyAnalysis as any}
             transformation={gameDataTransformation as any}
-            ui={{ ...mockUI, StatusToggles } as any}
+            ui={{ ...mockUI, StatusToggles, PitScoutingQuestions: GameSpecificQuestions } as any}
           >
             <MainLayout />
           </GameProvider>

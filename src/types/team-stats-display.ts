@@ -33,11 +33,11 @@ export interface StatDefinition {
   /** Display label */
   label: string;
   /** How to format & display */
-  type: 'number' | 'percentage';
+  type: 'number' | 'percentage' | 'text';
   /** Optional subtitle (e.g., "avg per match") */
   subtitle?: string;
   /** Optional color coding */
-  color?: 'default' | 'green' | 'blue' | 'purple' | 'orange' | 'red' | 'yellow';
+  color?: 'default' | 'green' | 'blue' | 'purple' | 'orange' | 'red' | 'yellow' | 'slate';
   /** Optional icon component */
   icon?: React.ComponentType<{ className?: string }>;
 }

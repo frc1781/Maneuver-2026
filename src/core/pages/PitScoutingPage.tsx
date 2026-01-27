@@ -1,4 +1,3 @@
-import { ReactNode } from "react";
 import { Button } from "@/core/components/ui/button";
 import { Alert, AlertDescription } from "@/core/components/ui/alert";
 import {
@@ -9,15 +8,10 @@ import {
   GameSpecificQuestionsPlaceholder,
 } from "@/core/components/pit-scouting";
 import { usePitScoutingForm } from "@/core/hooks/usePitScoutingForm";
+import { useGame } from "@/core/contexts/GameContext";
 import { Save, AlertCircle, CheckCircle } from "lucide-react";
 
 interface PitScoutingPageProps {
-  /**
-   * Optional: Game-specific sections to render after universal fields
-   * Game implementations can pass React components for their custom questions
-   */
-  children?: ReactNode;
-
   /**
    * Optional: Callback when form is successfully submitted
    * Useful for game implementations to perform additional actions
@@ -31,10 +25,12 @@ interface PitScoutingPageProps {
 }
 
 export function PitScoutingPage({
-  children,
   onSubmitSuccess,
   submitButtonText = "Save Pit Scouting Data",
 }: PitScoutingPageProps) {
+  const { ui } = useGame();
+  const PitScoutingQuestions = ui?.PitScoutingQuestions;
+  
   const {
     formState,
     setTeamNumber,
@@ -45,6 +41,7 @@ export function PitScoutingPage({
     setDrivetrain,
     setProgrammingLanguage,
     setNotes,
+    setGameData,
     handleSubmit,
     loadExistingEntry,
     isLoading,
@@ -111,10 +108,13 @@ export function PitScoutingPage({
         />
 
         {/* Game-Specific Questions Slot */}
-        {children ? (
+        {PitScoutingQuestions ? (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">Game-Specific Questions</h2>
-            {children}
+            <PitScoutingQuestions
+              gameData={formState.gameData || {}}
+              onGameDataChange={setGameData}
+            />
           </div>
         ) : (
           <GameSpecificQuestionsPlaceholder />
