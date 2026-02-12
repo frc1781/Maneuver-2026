@@ -147,7 +147,7 @@ function TeleopFieldMapContent() {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [robotCapacity, setRobotCapacity] = useState<number | undefined>();
     const [actionLogOpen, setActionLogOpen] = useState(false);
-    
+
     // Broken down state - persisted with localStorage
     const [brokenDownStart, setBrokenDownStart] = useState<number | null>(() => {
         const saved = localStorage.getItem('teleopBrokenDownStart');
@@ -177,11 +177,10 @@ function TeleopFieldMapContent() {
     }, [teamNumber]);
 
     // Reset fuel accumulation when entering Teleop (component mounts)
-    // Also reset when pendingWaypoint changes to ensure clean state
     useEffect(() => {
         resetFuel();
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
-    
+
     // Reset fuel when any pending waypoint is cleared
     useEffect(() => {
         if (!pendingWaypoint) {

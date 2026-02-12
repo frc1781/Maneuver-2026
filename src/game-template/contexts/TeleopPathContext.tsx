@@ -87,7 +87,7 @@ export function TeleopPathProvider({
 }: TeleopPathProviderProps) {
     return (
         <ScoringProvider {...scoringProps}>
-            <TeleopPathProviderInner 
+            <TeleopPathProviderInner
                 robotStatus={robotStatusProp}
                 onRobotStatusUpdate={onRobotStatusUpdate}
             >
@@ -97,17 +97,22 @@ export function TeleopPathProvider({
     );
 }
 
-function TeleopPathProviderInner({ 
-    children, 
-    robotStatus: robotStatusProp = {}, 
-    onRobotStatusUpdate 
-}: { 
+function TeleopPathProviderInner({
+    children,
+    robotStatus: robotStatusProp = {},
+    onRobotStatusUpdate
+}: {
     children: ReactNode;
     robotStatus?: any;
     onRobotStatusUpdate?: (updates: Partial<any>) => void;
 }) {
-    // Zone selection
-    const [activeZone, setActiveZone] = useState<ZoneType | null>(null);
+    // Access stuck state from ScoringContext to auto-select zone if stuck from Auto
+    const { isAnyStuck } = useScoring();
+
+    // Zone selection - auto-select alliance zone if robot is stuck (carried over from Auto)
+    const [activeZone, setActiveZone] = useState<ZoneType | null>(() =>
+        isAnyStuck ? 'allianceZone' : null
+    );
 
     // Climb with level
     const [climbLevel, setClimbLevel] = useState<ClimbLevel | undefined>(undefined);
@@ -116,7 +121,7 @@ function TeleopPathProviderInner({
 
     // Robot status - use prop if provided
     const robotStatus = robotStatusProp;
-    const updateRobotStatus = onRobotStatusUpdate || (() => {});
+    const updateRobotStatus = onRobotStatusUpdate || (() => { });
 
     // Container ref for dimensions
     const containerRef = useRef<HTMLDivElement>(null);
