@@ -29,7 +29,7 @@ export function StatOverview({
                         <p className="text-muted-foreground">
                             This team doesn't have any match scouting data.
                         </p>
-                        <Button onClick={() => setActiveTab("pit")} className="mt-4">
+                        <Button onClick={() => setActiveTab("pit")} className="mt-4 p-4">
                             View Pit Data →
                         </Button>
                     </div>
