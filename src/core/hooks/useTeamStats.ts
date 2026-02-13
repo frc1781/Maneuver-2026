@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useGame } from "@/core/contexts/GameContext";
 import {
     loadAllScoutingEntries,
+    loadAllPitScoutingEntries,
     loadScoutingEntriesByTeamAndEvent,
     loadScoutingEntriesByTeam
 } from "@/core/db/database";
@@ -26,15 +27,28 @@ export const useTeamStats = () => {
         const loadMetadata = async () => {
             setIsLoading(true);
             try {
-                const entries = await loadAllScoutingEntries();
+                const [entries, pitEntries] = await Promise.all([
+                    loadAllScoutingEntries(),
+                    loadAllPitScoutingEntries(),
+                ]);
 
                 // Extract unique teams (sorted)
-                const teams = [...new Set(entries.map(e => String(e.teamNumber)).filter(Boolean))];
+                const teams = [
+                    ...new Set([
+                        ...entries.map(e => String(e.teamNumber)).filter(Boolean),
+                        ...pitEntries.map(e => String(e.teamNumber)).filter(Boolean),
+                    ]),
+                ];
                 teams.sort((a, b) => parseInt(a) - parseInt(b));
                 setAvailableTeams(teams);
 
                 // Extract unique events (sorted)
-                const events = [...new Set(entries.map(e => e.eventKey).filter(Boolean))];
+                const events = [
+                    ...new Set([
+                        ...entries.map(e => e.eventKey).filter(Boolean),
+                        ...pitEntries.map(e => e.eventKey).filter(Boolean),
+                    ]),
+                ];
                 events.sort();
                 setAvailableEvents(events);
             } catch (error) {
