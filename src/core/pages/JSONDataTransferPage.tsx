@@ -6,7 +6,7 @@ import { convertArrayOfArraysToCSV } from "@/core/lib/utils";
 import { loadScoutingData } from "@/core/lib/scoutingDataUtils";
 import { loadPitScoutingData, exportPitScoutingToCSV, downloadPitScoutingImagesOnly } from "@/core/lib/pitScoutingUtils";
 import { gamificationDB as gameDB } from "@/game-template/gamification";
-import { csvExcludedFields } from "@/game-template/transformation";
+import { csvExcludedFields, pitCsvExcludedFields } from "@/game-template/transformation";
 import { Separator } from "@/core/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/core/components/ui/select";
 
@@ -155,7 +155,7 @@ const JSONDataTransferPage = () => {
           break;
         }
         case 'pitScouting': {
-          csv = await exportPitScoutingToCSV();
+          csv = await exportPitScoutingToCSV(pitCsvExcludedFields);
           if (!csv || csv.split('\n').length <= 1) {
             alert("No pit scouting data found.");
             return;
