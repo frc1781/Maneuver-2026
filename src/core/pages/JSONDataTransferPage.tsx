@@ -10,6 +10,18 @@ import { csvExcludedFields, pitCsvExcludedFields } from "@/game-template/transfo
 import { Separator } from "@/core/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/core/components/ui/select";
 
+const getSortableMatchNumber = (matchNumber: unknown, matchKey: unknown): number => {
+  if (typeof matchNumber === 'number' && Number.isFinite(matchNumber)) return matchNumber;
+
+  const fromMatchNumber = Number.parseInt(String(matchNumber ?? ''), 10);
+  if (Number.isFinite(fromMatchNumber)) return fromMatchNumber;
+
+  const key = String(matchKey ?? '');
+  const keyPart = key.includes('_') ? (key.split('_')[1] || key) : key;
+  const parsedFromKey = Number.parseInt(keyPart.replace(/\D/g, ''), 10);
+  return Number.isFinite(parsedFromKey) ? parsedFromKey : Number.MAX_SAFE_INTEGER;
+};
+
 
 
 const JSONDataTransferPage = () => {
@@ -32,6 +44,19 @@ const JSONDataTransferPage = () => {
       switch (dataType) {
         case 'scouting': {
           const scoutingEntries = await loadScoutingData();
+          const sortedScoutingEntries = [...scoutingEntries].sort((a, b) => {
+            const matchA = getSortableMatchNumber(a.matchNumber, a.matchKey);
+            const matchB = getSortableMatchNumber(b.matchNumber, b.matchKey);
+            if (matchA !== matchB) return matchA - matchB;
+
+            if (a.teamNumber !== b.teamNumber) return a.teamNumber - b.teamNumber;
+
+            if (a.allianceColor !== b.allianceColor) {
+              return a.allianceColor === 'red' ? -1 : 1;
+            }
+
+            return a.timestamp - b.timestamp;
+          });
 
           if (scoutingEntries.length === 0) {
             alert("No scouting data found.");
@@ -74,7 +99,7 @@ const JSONDataTransferPage = () => {
           };
 
           // First pass: collect all unique flattened gameData fields, organized by phase
-          for (const entry of scoutingEntries) {
+          for (const entry of sortedScoutingEntries) {
             if (entry.gameData) {
               const flattened = flattenObject(entry.gameData as Record<string, any>);
               for (const key of Object.keys(flattened)) {
@@ -108,7 +133,7 @@ const JSONDataTransferPage = () => {
 
           // Second pass: convert entries to arrays using pre-built header
           const dataArrays: (string | number)[][] = [];
-          for (const entry of scoutingEntries) {
+          for (const entry of sortedScoutingEntries) {
             const row: (string | number)[] = [];
             const entryAsRecord = entry as unknown as Record<string, unknown>;
 
