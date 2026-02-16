@@ -151,6 +151,10 @@ function TeleopFieldMapContent() {
     const effectiveScoutOptions = getEffectiveScoutOptions();
     const disableHubFuelScoringPopup =
         effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableHubFuelScoringPopup] === true;
+    const disablePassingPopup =
+        effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disablePassingPopup] === true;
+    const disablePathDrawingTapOnly =
+        effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableTeleopPathDrawingTapOnly] === true;
 
     // Local state (UI-only)
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -263,18 +267,19 @@ function TeleopFieldMapContent() {
         if (points.length === 0) return;
 
         const isDrag = points.length > 5;
+        const shouldUsePath = isDrag && !disablePathDrawingTapOnly;
         const endPos = points[points.length - 1] || points[0]!;
 
         if (isSelectingScore) {
             const waypoint: PathWaypoint = {
                 id: generateId(),
                 type: 'score',
-                action: isDrag ? 'shoot-path' : 'hub',
+                action: shouldUsePath ? 'shoot-path' : 'hub',
                 position: endPos,
                 fuelDelta: disableHubFuelScoringPopup ? 0 : 0,
                 amountLabel: disableHubFuelScoringPopup ? undefined : '...',
                 timestamp: Date.now(),
-                pathPoints: isDrag ? points : undefined,
+                pathPoints: shouldUsePath ? points : undefined,
                 zone: 'allianceZone',
             };
             if (disableHubFuelScoringPopup) {
@@ -292,17 +297,24 @@ function TeleopFieldMapContent() {
             const waypoint: PathWaypoint = {
                 id: generateId(),
                 type: 'pass',
-                action: isDrag ? 'pass-path' : 'partner',
+                action: shouldUsePath ? 'pass-path' : 'partner',
                 position: endPos,
                 fuelDelta: 0,
-                amountLabel: '...',
+                amountLabel: disablePassingPopup ? undefined : '...',
                 timestamp: Date.now(),
-                pathPoints: isDrag ? points : undefined,
+                pathPoints: shouldUsePath ? points : undefined,
                 zone: activeZone || 'neutralZone',
             };
-            setAccumulatedFuel(0);
-            setFuelHistory([]);
-            setPendingWaypoint(waypoint);
+            if (disablePassingPopup) {
+                onAddAction(waypoint);
+                setAccumulatedFuel(0);
+                setFuelHistory([]);
+                setPendingWaypoint(null);
+            } else {
+                setAccumulatedFuel(0);
+                setFuelHistory([]);
+                setPendingWaypoint(waypoint);
+            }
             setIsSelectingPass(false);
         }
     }, [
@@ -316,6 +328,8 @@ function TeleopFieldMapContent() {
         setIsSelectingScore,
         setIsSelectingPass,
         disableHubFuelScoringPopup,
+        disablePassingPopup,
+        disablePathDrawingTapOnly,
         onAddAction,
     ]);
 
@@ -585,7 +599,7 @@ function TeleopFieldMapContent() {
                         drawConnectedPaths={false}
                         drawingZoneBounds={currentZoneBounds}
                         onPointerDown={handleDrawStart}
-                        onPointerMove={handleDrawMove}
+                        onPointerMove={disablePathDrawingTapOnly ? undefined : handleDrawMove}
                         onPointerUp={handleDrawEnd}
                     />
 
@@ -672,7 +686,9 @@ function TeleopFieldMapContent() {
                                 "px-3 py-1.5 rounded-full font-bold text-sm",
                                 isSelectingScore ? "bg-green-600/90 text-white" : "bg-purple-600/90 text-white"
                             )}>
-                                {isSelectingScore ? 'Tap or draw to shoot' : 'Tap or draw pass path'}
+                                {isSelectingScore
+                                    ? (disablePathDrawingTapOnly ? 'Tap where robot scored' : 'Tap or draw to shoot')
+                                    : (disablePathDrawingTapOnly ? 'Tap where robot passed' : 'Tap or draw pass path')}
                             </div>
                             <Button
                                 variant="ghost"

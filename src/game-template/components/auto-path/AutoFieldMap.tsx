@@ -222,6 +222,10 @@ function AutoFieldMapContent({
     const effectiveScoutOptions = getEffectiveScoutOptions();
     const disableHubFuelScoringPopup =
         effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableHubFuelScoringPopup] === true;
+    const disablePassingPopup =
+        effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disablePassingPopup] === true;
+    const disablePathDrawingTapOnly =
+        effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableAutoPathDrawingTapOnly] === true;
 
     // Load pit scouting data for fuel capacity
     useEffect(() => {
@@ -500,18 +504,19 @@ function AutoFieldMapContent({
         if (points.length === 0) return;
 
         const isDrag = points.length > 5; // Simple threshold to distinguish tap vs drag
+        const shouldUsePath = isDrag && !disablePathDrawingTapOnly;
         const pos = points[0]!;
 
         if (isSelectingScore) {
             const waypoint: PathWaypoint = {
                 id: generateId(),
                 type: 'score',
-                action: isDrag ? 'shoot-path' : 'hub',
+                action: shouldUsePath ? 'shoot-path' : 'hub',
                 position: pos,
                 fuelDelta: disableHubFuelScoringPopup ? 0 : -8, // Default, finalized in amount selection unless popup disabled
                 amountLabel: disableHubFuelScoringPopup ? undefined : '...',
                 timestamp: Date.now(),
-                pathPoints: isDrag ? points : undefined,
+                pathPoints: shouldUsePath ? points : undefined,
             };
             if (disableHubFuelScoringPopup) {
                 onAddAction(waypoint);
@@ -528,22 +533,29 @@ function AutoFieldMapContent({
             const waypoint: PathWaypoint = {
                 id: generateId(),
                 type: 'pass',
-                action: isDrag ? 'pass-path' : 'partner',
+                action: shouldUsePath ? 'pass-path' : 'partner',
                 position: pos,
                 fuelDelta: 0,
-                amountLabel: '...', // Placeholder until confirmed
+                amountLabel: disablePassingPopup ? undefined : '...',
                 timestamp: Date.now(),
-                pathPoints: isDrag ? points : undefined,
+                pathPoints: shouldUsePath ? points : undefined,
             };
-            setAccumulatedFuel(0);
-            setFuelHistory([]);
-            setPendingWaypoint(waypoint);
+            if (disablePassingPopup) {
+                onAddAction(waypoint);
+                setAccumulatedFuel(0);
+                setFuelHistory([]);
+                setPendingWaypoint(null);
+            } else {
+                setAccumulatedFuel(0);
+                setFuelHistory([]);
+                setPendingWaypoint(waypoint);
+            }
             setIsSelectingPass(false);
         } else if (isSelectingCollect) {
             // Collect still immediate as per plan or consolidate too? 
             // The user said: "I don't think we need to track it for collect, we really only care about how many they scored"
             // So I'll keep collect immediate for speed, but use the unified structure.
-            if (isDrag) {
+            if (shouldUsePath) {
                 const waypoint: PathWaypoint = {
                     id: generateId(),
                     type: 'collect',
@@ -696,7 +708,7 @@ function AutoFieldMapContent({
                     drawConnectedPaths={true}
                     drawingZoneBounds={currentZoneBounds}
                     onPointerDown={handleDrawStart}
-                    onPointerMove={handleDrawMove}
+                    onPointerMove={disablePathDrawingTapOnly ? undefined : handleDrawMove}
                     onPointerUp={handleDrawEnd}
                 />
 
@@ -752,7 +764,9 @@ function AutoFieldMapContent({
                     <div className={cn("absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none", isFieldRotated && "rotate-180")}>
                         <Card className="pointer-events-auto bg-background/95 backdrop-blur-sm border-green-500/50 shadow-2xl py-2 px-3 flex flex-row items-center gap-4">
                             <Badge variant="default" className="bg-green-600">SCORING MODE</Badge>
-                            <span className="text-sm font-medium">Tap or draw where the robot scored</span>
+                            <span className="text-sm font-medium">
+                                {disablePathDrawingTapOnly ? 'Tap where the robot scored' : 'Tap or draw where the robot scored'}
+                            </span>
                             <Button
                                 onClick={(e) => { e.stopPropagation(); setIsSelectingScore(false); resetDrawing(); }}
                                 variant="ghost"
@@ -770,7 +784,9 @@ function AutoFieldMapContent({
                     <div className={cn("absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none", isFieldRotated && "rotate-180")}>
                         <Card className="pointer-events-auto bg-background/95 backdrop-blur-sm border-purple-500/50 shadow-2xl py-2 px-3 flex flex-row items-center gap-4">
                             <Badge variant="default" className="bg-purple-600">PASSING MODE</Badge>
-                            <span className="text-sm font-medium">Tap or draw where the robot passed from</span>
+                            <span className="text-sm font-medium">
+                                {disablePathDrawingTapOnly ? 'Tap where the robot passed from' : 'Tap or draw where the robot passed from'}
+                            </span>
                             <Button
                                 onClick={(e) => { e.stopPropagation(); setIsSelectingPass(false); resetDrawing(); }}
                                 variant="ghost"
@@ -788,7 +804,9 @@ function AutoFieldMapContent({
                     <div className={cn("absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none", isFieldRotated && "rotate-180")}>
                         <Card className="pointer-events-auto bg-background/95 backdrop-blur-sm border-yellow-500/50 shadow-2xl py-2 px-3 flex flex-row items-center gap-4">
                             <Badge variant="default" className="bg-yellow-600">COLLECT MODE</Badge>
-                            <span className="text-sm font-medium">Tap or draw where the robot collected</span>
+                            <span className="text-sm font-medium">
+                                {disablePathDrawingTapOnly ? 'Tap where the robot collected' : 'Tap or draw where the robot collected'}
+                            </span>
                             <Button
                                 onClick={(e) => { e.stopPropagation(); setIsSelectingCollect(false); resetDrawing(); }}
                                 variant="ghost"

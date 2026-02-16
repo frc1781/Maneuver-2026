@@ -23,6 +23,54 @@ export function GameSpecificScoutOptions({
           </p>
         </div>
       </label>
+
+      <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer">
+        <Checkbox
+          checked={options[GAME_SCOUT_OPTION_KEYS.disablePassingPopup] ?? false}
+          onCheckedChange={(checked) =>
+            onOptionChange(GAME_SCOUT_OPTION_KEYS.disablePassingPopup, checked === true)
+          }
+          className="mt-0.5"
+        />
+        <div>
+          <p className="text-sm font-medium">Disable passing popup</p>
+          <p className="text-xs text-muted-foreground">
+            Makes pass actions one-tap by skipping amount selection.
+          </p>
+        </div>
+      </label>
+
+      <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer">
+        <Checkbox
+          checked={options[GAME_SCOUT_OPTION_KEYS.disableAutoPathDrawingTapOnly] ?? false}
+          onCheckedChange={(checked) =>
+            onOptionChange(GAME_SCOUT_OPTION_KEYS.disableAutoPathDrawingTapOnly, checked === true)
+          }
+          className="mt-0.5"
+        />
+        <div>
+          <p className="text-sm font-medium">Auto: Disable paths (tap-only spots)</p>
+          <p className="text-xs text-muted-foreground">
+            Keeps autonomous scoring/pass/collect as waypoint taps and removes draw-path input.
+          </p>
+        </div>
+      </label>
+
+      <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer">
+        <Checkbox
+          checked={options[GAME_SCOUT_OPTION_KEYS.disableTeleopPathDrawingTapOnly] ?? false}
+          onCheckedChange={(checked) =>
+            onOptionChange(GAME_SCOUT_OPTION_KEYS.disableTeleopPathDrawingTapOnly, checked === true)
+          }
+          className="mt-0.5"
+        />
+        <div>
+          <p className="text-sm font-medium">Teleop: Disable paths (tap-only spots)</p>
+          <p className="text-xs text-muted-foreground">
+            Keeps teleop scoring/pass actions as waypoint taps and removes draw-path input.
+          </p>
+        </div>
+      </label>
     </div>
   );
 }

@@ -4,10 +4,20 @@ export const SCOUT_OPTIONS_STORAGE_KEY = "scoutOptions";
 
 export const GAME_SCOUT_OPTION_KEYS = {
   disableHubFuelScoringPopup: "disableHubFuelScoringPopup",
+  disablePassingPopup: "disablePassingPopup",
+  disableAutoPathDrawingTapOnly: "disableAutoPathDrawingTapOnly",
+  disableTeleopPathDrawingTapOnly: "disableTeleopPathDrawingTapOnly",
+} as const;
+
+const LEGACY_SCOUT_OPTION_KEYS = {
+  disablePathDrawingTapOnly: "disablePathDrawingTapOnly",
 } as const;
 
 export const GAME_SCOUT_OPTION_DEFAULTS: ScoutOptionsState = {
   [GAME_SCOUT_OPTION_KEYS.disableHubFuelScoringPopup]: false,
+  [GAME_SCOUT_OPTION_KEYS.disablePassingPopup]: false,
+  [GAME_SCOUT_OPTION_KEYS.disableAutoPathDrawingTapOnly]: false,
+  [GAME_SCOUT_OPTION_KEYS.disableTeleopPathDrawingTapOnly]: false,
 };
 
 function coerceScoutOptions(value: unknown): ScoutOptionsState {
@@ -35,10 +45,23 @@ export function readStoredScoutOptions(): ScoutOptionsState {
 }
 
 export function getEffectiveScoutOptions(inputOptions?: unknown): ScoutOptionsState {
+  const coercedInput = coerceScoutOptions(inputOptions);
+  const stored = readStoredScoutOptions();
+
+  const legacyDisablePaths =
+    stored[LEGACY_SCOUT_OPTION_KEYS.disablePathDrawingTapOnly] === true ||
+    coercedInput[LEGACY_SCOUT_OPTION_KEYS.disablePathDrawingTapOnly] === true;
+
   return {
     ...GAME_SCOUT_OPTION_DEFAULTS,
-    ...readStoredScoutOptions(),
-    ...coerceScoutOptions(inputOptions),
+    ...(legacyDisablePaths
+      ? {
+          [GAME_SCOUT_OPTION_KEYS.disableAutoPathDrawingTapOnly]: true,
+          [GAME_SCOUT_OPTION_KEYS.disableTeleopPathDrawingTapOnly]: true,
+        }
+      : {}),
+    ...stored,
+    ...coercedInput,
   };
 }
 
