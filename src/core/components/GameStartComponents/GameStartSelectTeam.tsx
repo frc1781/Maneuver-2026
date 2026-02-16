@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, type JSX } from "react";
 import SelectTeamButton from "./GameStartSelectTeamButton";
 import { Input } from "../ui/input";
+import { loadScoutingEntriesByMatch } from "@/core/db/database";
 /**
  * A component that renders a team selection interface.
  *
@@ -16,6 +17,7 @@ interface InitialSelectTeamProps {
   setSelectTeam: (team: string | null) => void;
   selectedMatch: string;
   selectedAlliance: string;
+  selectedEventKey?: string;
   preferredTeamPosition?: number;
 }
 
@@ -24,6 +26,7 @@ const InitialSelectTeam = ({
   setSelectTeam,
   selectedMatch,
   selectedAlliance,
+  selectedEventKey,
   preferredTeamPosition = 0,
 }: InitialSelectTeamProps): JSX.Element => {
   const baseTeams = useMemo(() => {
@@ -59,6 +62,105 @@ const InitialSelectTeam = ({
       return ["0001", "0002", "0003"];
     }
   }, [selectedMatch, selectedAlliance]);
+
+  const [scoutedTeams, setScoutedTeams] = useState<string[]>([]);
+  const hasPreferredRolePosition = preferredTeamPosition >= 1 && preferredTeamPosition <= 3;
+
+  useEffect(() => {
+    const loadScoutedTeamsForMatch = async () => {
+      const matchNumber = parseInt(selectedMatch);
+      if (!Number.isFinite(matchNumber) || matchNumber <= 0 || !selectedAlliance) {
+        setScoutedTeams([]);
+        return;
+      }
+
+      try {
+        const activeEventKey = (selectedEventKey || localStorage.getItem("eventKey") || "").toLowerCase();
+        const entries = await loadScoutingEntriesByMatch(matchNumber);
+
+        const filteredEntries = entries.filter((entry) => {
+          const entryAlliance = entry.allianceColor?.toLowerCase();
+          const entryEvent = entry.eventKey?.toLowerCase();
+
+          if (entryAlliance !== selectedAlliance.toLowerCase()) {
+            return false;
+          }
+
+          if (!activeEventKey) {
+            return true;
+          }
+
+          return entryEvent === activeEventKey;
+        });
+
+        const seen = new Set<string>();
+        const teams: string[] = [];
+
+        filteredEntries
+          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+          .forEach((entry) => {
+            const team = String(entry.teamNumber || "").trim();
+            if (!team || seen.has(team)) {
+              return;
+            }
+            seen.add(team);
+            teams.push(team);
+          });
+
+        setScoutedTeams(teams.slice(0, 3));
+      } catch {
+        setScoutedTeams([]);
+      }
+    };
+
+    void loadScoutedTeamsForMatch();
+  }, [selectedMatch, selectedAlliance, selectedEventKey]);
+
+  const effectiveTeams = useMemo(() => {
+    if (!hasPreferredRolePosition) {
+      return baseTeams;
+    }
+
+    if (scoutedTeams.length === 0) {
+      return baseTeams;
+    }
+
+    const base = [...baseTeams];
+    const extras = scoutedTeams.filter((team) => !base.includes(team));
+
+    if (extras.length === 0) {
+      return base;
+    }
+
+    const replacementOrder: number[] = [];
+    if (preferredTeamPosition >= 1 && preferredTeamPosition <= 3) {
+      replacementOrder.push(preferredTeamPosition - 1);
+    }
+
+    for (let i = 0; i < base.length; i++) {
+      if (!replacementOrder.includes(i)) {
+        replacementOrder.push(i);
+      }
+    }
+
+    let extraIndex = 0;
+    for (const replaceIndex of replacementOrder) {
+      if (extraIndex >= extras.length) {
+        break;
+      }
+      const currentTeam = base[replaceIndex];
+      if (!scoutedTeams.includes(currentTeam)) {
+        base[replaceIndex] = extras[extraIndex]!;
+        extraIndex++;
+      }
+    }
+
+    return base;
+  }, [baseTeams, scoutedTeams, preferredTeamPosition, hasPreferredRolePosition]);
+
+  const recentCustomTeam = useMemo(() => {
+    return scoutedTeams.find((team) => !baseTeams.includes(team)) || "";
+  }, [scoutedTeams, baseTeams]);
 
   // Helper function to determine if a team should be auto-selected based on position
   const getInitialTeamSelection = () => {
@@ -109,16 +211,25 @@ const InitialSelectTeam = ({
   // Sync customTeamValue with defaultSelectTeam prop changes (important for batch re-scout)
   useEffect(() => {
     if (defaultSelectTeam &&
-      defaultSelectTeam !== baseTeams[0] &&
-      defaultSelectTeam !== baseTeams[1] &&
-      defaultSelectTeam !== baseTeams[2]) {
+      defaultSelectTeam !== effectiveTeams[0] &&
+      defaultSelectTeam !== effectiveTeams[1] &&
+      defaultSelectTeam !== effectiveTeams[2]) {
       setCustomTeamValue(defaultSelectTeam);
       setCustomTeamStatus(true);
       setTeam1Status(false);
       setTeam2Status(false);
       setTeam3Status(false);
     }
-  }, [defaultSelectTeam, baseTeams]);
+  }, [defaultSelectTeam, effectiveTeams]);
+
+  useEffect(() => {
+    if (hasPreferredRolePosition) return;
+    if (defaultSelectTeam) return;
+    if (!recentCustomTeam) return;
+    if (customTeamValue) return;
+
+    setCustomTeamValue(recentCustomTeam);
+  }, [hasPreferredRolePosition, defaultSelectTeam, recentCustomTeam, customTeamValue]);
 
   // Function to handle team selection
   const clickTeam = (currentTeamType: string, currentTeamStatus: boolean) => {
@@ -152,17 +263,17 @@ const InitialSelectTeam = ({
   // Effect to set the selected team
   useEffect(() => {
     if (team1Status) {
-      setSelectTeam(baseTeams[0]);
+      setSelectTeam(effectiveTeams[0]);
     } else if (team2Status) {
-      setSelectTeam(baseTeams[1]);
+      setSelectTeam(effectiveTeams[1]);
     } else if (team3Status) {
-      setSelectTeam(baseTeams[2]);
+      setSelectTeam(effectiveTeams[2]);
     } else if (customTeamStatus && customTeamValue != "") {
       setSelectTeam(customTeamValue);
     } else {
       setSelectTeam(null);
     }
-  }, [team1Status, team2Status, team3Status, customTeamStatus, customTeamValue, setSelectTeam, baseTeams]);
+  }, [team1Status, team2Status, team3Status, customTeamStatus, customTeamValue, setSelectTeam, effectiveTeams]);
 
   // Effect to update team selection when baseTeams or preferredTeamPosition changes
   useEffect(() => {
@@ -178,7 +289,7 @@ const InitialSelectTeam = ({
         setTeam3Status(true);
       }
     }
-  }, [baseTeams, preferredTeamPosition, team1Status, team2Status, team3Status, customTeamStatus]);
+  }, [effectiveTeams, preferredTeamPosition, team1Status, team2Status, team3Status, customTeamStatus]);
 
   const [textSelected, setTextSelected] = useState(false);
 
@@ -198,6 +309,11 @@ const InitialSelectTeam = ({
             Your role suggests position {preferredTeamPosition}
           </p>
         )}
+        {scoutedTeams.length > 0 && hasPreferredRolePosition && (
+          <p className="text-sm text-amber-700 dark:text-amber-300 pb-2">
+            Showing teams from existing scouting for this match/alliance.
+          </p>
+        )}
         {/* Selectors */}
         <div className="flex flex-col w-full h-full gap-4">
           <div className="grow">
@@ -205,7 +321,7 @@ const InitialSelectTeam = ({
               currentTeamType={"1"}
               currentTeamStatus={team1Status}
               clickTeam={clickTeam}
-              teamName={baseTeams[0]}
+              teamName={effectiveTeams[0]}
               isPreferred={preferredTeamPosition === 1}
             />
           </div>
@@ -214,7 +330,7 @@ const InitialSelectTeam = ({
               currentTeamType={"2"}
               currentTeamStatus={team2Status}
               clickTeam={clickTeam}
-              teamName={baseTeams[1]}
+              teamName={effectiveTeams[1]}
               isPreferred={preferredTeamPosition === 2}
             />
           </div>
@@ -223,7 +339,7 @@ const InitialSelectTeam = ({
               currentTeamType={"3"}
               currentTeamStatus={team3Status}
               clickTeam={clickTeam}
-              teamName={baseTeams[2]}
+              teamName={effectiveTeams[2]}
               isPreferred={preferredTeamPosition === 3}
             />
           </div>

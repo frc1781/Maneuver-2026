@@ -11,6 +11,7 @@ import {
 import { handleScoutProfilesUpload } from "@/core/lib/uploadHandlers/scoutProfilesUploadHandler";
 import { handlePitScoutingUpload } from "@/core/lib/uploadHandlers/pitScoutingUploadHandler";
 import { handlePitScoutingImagesUpload } from "@/core/lib/uploadHandlers/pitScoutingImagesUploadHandler";
+import { handleMatchScheduleUpload } from "@/core/lib/uploadHandlers/matchScheduleUploadHandler";
 import ConflictResolutionDialog from "./ConflictResolutionDialog";
 import { BatchConflictDialog } from "./BatchConflictDialog";
 import type { ConflictInfo } from "@/core/lib/scoutingDataUtils";
@@ -23,7 +24,7 @@ type JSONUploaderProps = {
 
 const JSONUploader: React.FC<JSONUploaderProps> = ({ onBack }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [detectedDataType, setDetectedDataType] = useState<'scouting' | 'scoutProfiles' | 'pitScouting' | 'pitScoutingImagesOnly' | null>(null);
+  const [detectedDataType, setDetectedDataType] = useState<'scouting' | 'scoutProfiles' | 'pitScouting' | 'pitScoutingImagesOnly' | 'matchSchedule' | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Batch review state
@@ -75,7 +76,8 @@ const JSONUploader: React.FC<JSONUploaderProps> = ({ onBack }) => {
         scouting: 'Scouting Data',
         scoutProfiles: 'Scout Profiles',
         pitScouting: 'Pit Scouting Data',
-        pitScoutingImagesOnly: 'Pit Scouting Images Only'
+        pitScoutingImagesOnly: 'Pit Scouting Images Only',
+        matchSchedule: 'Match Schedule'
       };
       
       toast.info(`Selected: ${file.name} (${dataTypeNames[dataType]})`);
@@ -130,6 +132,8 @@ const JSONUploader: React.FC<JSONUploaderProps> = ({ onBack }) => {
         await handlePitScoutingUpload(jsonData, mode);
       } else if (detectedDataType === 'pitScoutingImagesOnly') {
         await handlePitScoutingImagesUpload(jsonData);
+      } else if (detectedDataType === 'matchSchedule') {
+        await handleMatchScheduleUpload(jsonData, mode);
       }
 
       setSelectedFile(null);
@@ -231,7 +235,7 @@ const JSONUploader: React.FC<JSONUploaderProps> = ({ onBack }) => {
               className="w-full min-h-16 text-xl whitespace-normal text-wrap py-3 px-4"
             >
               {selectedFile 
-                ? `Selected: ${selectedFile.name}${detectedDataType ? ` (${detectedDataType === 'scouting' ? 'Scouting Data' : detectedDataType === 'scoutProfiles' ? 'Scout Profiles' : detectedDataType === 'pitScouting' ? 'Pit Scouting Data' : 'Pit Scouting Images Only'})` : ''}`
+                ? `Selected: ${selectedFile.name}${detectedDataType ? ` (${detectedDataType === 'scouting' ? 'Scouting Data' : detectedDataType === 'scoutProfiles' ? 'Scout Profiles' : detectedDataType === 'pitScouting' ? 'Pit Scouting Data' : detectedDataType === 'pitScoutingImagesOnly' ? 'Pit Scouting Images Only' : 'Match Schedule'})` : ''}`
                 : "Select JSON Data File"
               }
             </Button>
@@ -253,6 +257,17 @@ const JSONUploader: React.FC<JSONUploaderProps> = ({ onBack }) => {
                     <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded border">
                       <strong>Note:</strong> Images can only be added to teams that already have pit scouting entries. Import pit scouting text data first via QR codes or JSON, then add images.
                     </div>
+                  </div>
+                ) : detectedDataType === 'matchSchedule' ? (
+                  <div className="space-y-3">
+                    <Button
+                      onClick={() => handleUpload("overwrite")}
+                      disabled={isProcessing}
+                      className="w-full h-16 text-xl bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isProcessing ? '⏳ Processing...' : '📅 Replace Match Schedule'}
+                    </Button>
+                    <p><strong>Replace Match Schedule</strong>: Overwrites all existing local match schedule data with the uploaded file.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">

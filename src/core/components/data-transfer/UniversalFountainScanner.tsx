@@ -275,7 +275,8 @@ export const UniversalFountainScanner = ({
 
       // Update progress estimate
       const received = packetsRef.current.size;
-      const baseEstimate = Math.max(packet.k + 3, 10);
+      const packetK = typeof packet.k === 'number' ? packet.k : 0;
+      const baseEstimate = Math.max(packetK + 3, 10);
 
       // Track the highest estimate we've seen using REF, avoiding state dependency
       if (baseEstimate > neededPacketsRef.current) {
@@ -296,8 +297,8 @@ export const UniversalFountainScanner = ({
       });
 
       // Calculate and update missing packets - THROTTLED to avoid re-renders
-      // Update missing packets every 500ms
-      if (Date.now() - lastMissingUpdateRef.current > 500) {
+      if (packetK > 0 && received > packetK && progressPercentage > 90) {
+        addDebugMsg(`🔍 High packet count but no completion yet: k=${packetK}, received=${received}`);
         const missing = calculateMissingPackets();
 
         // Log missing packets info (only when we calculate them)

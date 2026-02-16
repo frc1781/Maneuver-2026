@@ -6,7 +6,7 @@
 import type {
   ScoutingEntryBase,
 } from '../types/scouting-entry';
-import { db } from './database';
+import { db, loadAllScoutingEntries, saveScoutingEntries } from './database';
 
 /**
  * Generate deterministic composite ID from entry fields
@@ -206,7 +206,6 @@ export const loadScoutingData = async <TGameData = Record<string, unknown>>(): P
   ScoutingEntryBase<TGameData>[]
 > => {
   try {
-    const { loadAllScoutingEntries } = await import('./database');
     return await loadAllScoutingEntries<TGameData>();
   } catch (error) {
     console.error('Error loading scouting data:', error);
@@ -221,7 +220,6 @@ export const saveScoutingData = async <TGameData = Record<string, unknown>>(
   entries: ScoutingEntryBase<TGameData>[]
 ): Promise<void> => {
   try {
-    const { saveScoutingEntries } = await import('./database');
     await saveScoutingEntries(entries);
   } catch (error) {
     console.error('Error saving scouting data:', error);

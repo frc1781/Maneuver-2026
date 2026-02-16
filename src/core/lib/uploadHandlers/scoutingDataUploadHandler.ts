@@ -6,6 +6,7 @@ import {
   type ConflictInfo
 } from "@/core/lib/scoutingDataUtils";
 import type { ScoutingEntryBase } from "@/types/scouting-entry";
+import { db } from "@/core/db/database";
 
 export type UploadMode = "append" | "overwrite" | "smart-merge";
 
@@ -70,7 +71,6 @@ export const handleScoutingDataUpload = async (jsonData: unknown, mode: UploadMo
     // Use field-based conflict detection for reliable cross-device matching
     const conflictResult = await detectConflicts(newEntries);
     
-    const { db } = await import('@/core/db/database');
     
     const results = { added: 0, replaced: 0 };
     
@@ -150,7 +150,6 @@ export const applyConflictResolutions = async (
   conflicts: ConflictInfo[],
   resolutions: Map<string, 'replace' | 'skip'>
 ): Promise<{ replaced: number; skipped: number }> => {
-  const { db } = await import('@/core/db/database');
   let replaced = 0;
   let skipped = 0;
   

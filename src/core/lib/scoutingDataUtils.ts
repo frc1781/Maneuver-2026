@@ -4,6 +4,7 @@
  */
 
 import type { ScoutingEntryBase } from '@/types/scouting-entry';
+import { db } from '@/core/db/database';
 
 /**
  * Normalize event key for consistent storage and comparison
@@ -105,7 +106,6 @@ const compareMatchKeys = (a: string, b: string): number => {
 
 export const loadScoutingData = async (): Promise<ScoutingEntryBase[]> => {
   try {
-    const { db } = await import('@/core/db/database');
     const entries = await db.scoutingData.toArray();
     // Cast to ScoutingEntryBase since database returns generic version
     return entries as unknown as ScoutingEntryBase[];
@@ -117,7 +117,6 @@ export const loadScoutingData = async (): Promise<ScoutingEntryBase[]> => {
 
 export const saveScoutingData = async (entries: ScoutingEntryBase[]): Promise<void> => {
   try {
-    const { db } = await import('@/core/db/database');
     // Cast to match database generic type
     await db.scoutingData.bulkPut(entries as any);
   } catch (error) {
@@ -245,8 +244,6 @@ export const computeChangedFields = (
 export const detectConflicts = async (
   incomingData: ScoutingEntryBase[]
 ): Promise<ConflictDetectionResult> => {
-  const { db } = await import('@/core/db/database');
-  
   const autoImport: ScoutingEntryBase[] = [];
   const autoReplace: ScoutingEntryBase[] = [];
   const batchReview: ScoutingEntryBase[] = [];

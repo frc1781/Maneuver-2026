@@ -469,6 +469,7 @@ const GameStartPage = () => {
                   setSelectTeam={setSelectTeam}
                   selectedMatch={debouncedMatchNumber}
                   selectedAlliance={alliance}
+                  selectedEventKey={eventKey}
                   preferredTeamPosition={stationInfo.teamPosition}
                 />
               </div>

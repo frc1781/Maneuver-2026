@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { detectConflicts, type ConflictInfo } from '@/core/lib/scoutingDataUtils';
 import type { ScoutingEntryBase } from '@/core/types/scouting-entry';
 import { debugLog } from '@/core/lib/peerTransferUtils';
+import { db, pitDB, saveScoutingEntry } from '@/core/db/database';
 
 interface ReceivedDataEntry {
     scoutName: string;
@@ -89,7 +90,6 @@ export function usePeerTransferImport(options: UsePeerTransferImportOptions) {
 
     const importPitScoutingData = useCallback(async (pitData: { entries?: unknown[] }, scoutName: string) => {
         if (pitData.entries && Array.isArray(pitData.entries)) {
-            const { pitDB } = await import('@/core/db/database');
             await pitDB.pitScoutingData.bulkPut(pitData.entries as never[]);
             toast.success(`Imported ${pitData.entries.length} pit scouting entries from ${scoutName}`);
         }
@@ -115,7 +115,6 @@ export function usePeerTransferImport(options: UsePeerTransferImportOptions) {
         }
 
         // Check local database before conflict detection
-        const { db } = await import('@/core/db/database');
         const localCount = await db.scoutingData.count();
         console.log('📊 Local database count BEFORE import:', localCount);
 
@@ -133,7 +132,6 @@ export function usePeerTransferImport(options: UsePeerTransferImportOptions) {
             conflicts: conflictResult.conflicts.length
         });
 
-        const { saveScoutingEntry } = await import('@/core/db/database');
         const results = { added: 0, replaced: 0, conflictsToReview: 0 };
 
         // Auto-import: Save new entries

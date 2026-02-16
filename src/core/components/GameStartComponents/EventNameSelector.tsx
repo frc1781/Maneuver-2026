@@ -232,8 +232,8 @@ export function EventNameSelector({
               </CommandGroup>
             )}
 
-            {/* Official 2026 Events */}
-            <CommandGroup heading="Official 2026 Events">
+            {/* Official Events */}
+            <CommandGroup heading="Official Events">
               {officialEvents.map((event) => {
                 const displayName = `${event.name} (${event.key})${event.week !== null ? ` - Week ${event.week}` : ''}`
                 return (

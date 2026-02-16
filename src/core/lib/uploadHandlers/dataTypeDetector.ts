@@ -1,5 +1,7 @@
+import { isMatchSchedulePayload } from "@/core/lib/matchScheduleTransfer";
+
 // Function to detect data type from JSON content
-export const detectDataType = (jsonData: unknown): 'scouting' | 'scoutProfiles' | 'pitScouting' | 'pitScoutingImagesOnly' | null => {
+export const detectDataType = (jsonData: unknown): 'scouting' | 'scoutProfiles' | 'pitScouting' | 'pitScoutingImagesOnly' | 'matchSchedule' | null => {
   if (!jsonData || typeof jsonData !== 'object') return null;
 
   const data = jsonData as Record<string, unknown>;
@@ -12,6 +14,10 @@ export const detectDataType = (jsonData: unknown): 'scouting' | 'scoutProfiles' 
   // Check for pit scouting images-only format
   if ('type' in data && data.type === 'pit-scouting-images-only' && 'entries' in data && Array.isArray(data.entries)) {
     return 'pitScoutingImagesOnly';
+  }
+
+  if (isMatchSchedulePayload(jsonData)) {
+    return 'matchSchedule';
   }
 
   // Check for pit scouting format
