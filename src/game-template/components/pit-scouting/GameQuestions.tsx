@@ -21,10 +21,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/core/components/ui/dialog";
+import { ScoutOptionsSheet } from "@/core/components/GameStartComponents/ScoutOptionsSheet";
 import { AutoFieldMap } from "@/game-template/components/auto-path/AutoFieldMap";
 import type { PathWaypoint } from "@/game-template/components/field-map";
-import { Eraser, Save, Trash2, X } from "lucide-react";
+import { GameSpecificScoutOptions } from "@/game-template/components/game-start/ScoutOptions";
+import {
+  SCOUT_OPTIONS_STORAGE_KEY,
+  getEffectiveScoutOptions,
+} from "@/game-template/scout-options";
+import { Eraser, Save, Settings2, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { ScoutOptionsState } from "@/types";
 
 interface GameSpecificQuestionsProps {
   gameData?: Record<string, unknown>;
@@ -91,6 +98,9 @@ export function GameSpecificQuestions({ gameData = {}, onGameDataChange }: GameS
   const [recordingStart, setRecordingStart] = useState<PitAutoStartPosition | null>(null);
   const [recordingActions, setRecordingActions] = useState<PathWaypoint[]>([]);
   const [recordingName, setRecordingName] = useState('');
+  const [recordingScoutOptions, setRecordingScoutOptions] = useState<ScoutOptionsState>(() =>
+    getEffectiveScoutOptions()
+  );
 
   const handleChange = (key: string, value: unknown) => {
     onGameDataChange({ ...gameData, [key]: value });
@@ -177,6 +187,17 @@ export function GameSpecificQuestions({ gameData = {}, onGameDataChange }: GameS
     const selected = (gameData[key] as string[]) || [];
     const index = selected.indexOf(value);
     return index >= 0 ? index + 1 : null;
+  };
+
+  const handleRecordingScoutOptionChange = (key: string, value: boolean) => {
+    setRecordingScoutOptions((prev) => {
+      const next = {
+        ...prev,
+        [key]: value,
+      };
+      localStorage.setItem(SCOUT_OPTIONS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
   };
 
   return (
@@ -473,14 +494,33 @@ export function GameSpecificQuestions({ gameData = {}, onGameDataChange }: GameS
                 recordingMode={true}
                 preferredStartKey={recordingStart ? PIT_START_TO_FIELD_KEY[recordingStart] : undefined}
                 headerInputSlot={
-                  <Input
-                    id="pit-reported-auto-name"
-                    value={recordingName}
-                    onChange={(e) => setRecordingName(e.target.value)}
-                    placeholder={recordingStart ? `${recordingStart} Auto` : 'Reported Auto'}
-                    className="h-8 w-48 sm:w-72"
-                    aria-label="Auto name"
-                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="pit-reported-auto-name"
+                      value={recordingName}
+                      onChange={(e) => setRecordingName(e.target.value)}
+                      placeholder={recordingStart ? `${recordingStart} Auto` : 'Reported Auto'}
+                      className="h-8 w-48 sm:w-72"
+                      aria-label="Auto name"
+                    />
+                    <ScoutOptionsSheet
+                      options={recordingScoutOptions}
+                      onOptionChange={handleRecordingScoutOptionChange}
+                      customContent={GameSpecificScoutOptions}
+                      trigger={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label="Scout settings"
+                          title="Scout settings"
+                        >
+                          <Settings2 className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
+                  </div>
                 }
                 recordingActionSlot={
                   <div className="flex items-center gap-1">

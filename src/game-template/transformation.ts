@@ -25,7 +25,7 @@ function generateActionDefaults(phase: 'auto' | 'teleop'): Record<string, number
   const defaults: Record<string, number> = {};
 
   // Actions tracked in both phases
-  const commonActions = ['fuelScored', 'fuelPassed', 'trenchStuck', 'bumpStuck', 'brokenDown'];
+  const commonActions = ['fuelScored', 'fuelPassed', 'shotOnTheMove', 'shotStationary', 'trenchStuck', 'bumpStuck', 'brokenDown'];
 
   // Auto-only actions
   const autoOnlyActions = ['depotCollect', 'outpostCollect', 'foulCommitted'];
@@ -159,6 +159,11 @@ export const gameDataTransformation: DataTransformation = {
           case 'score':
             // fuelDelta is negative for deposits (robot loses fuel)
             result.auto.fuelScoredCount = (result.auto.fuelScoredCount || 0) + Math.abs(wp.fuelDelta || 0);
+            if (wp.shotType === 'onTheMove') {
+              result.auto.shotOnTheMoveCount = (result.auto.shotOnTheMoveCount || 0) + 1;
+            } else if (wp.shotType === 'stationary') {
+              result.auto.shotStationaryCount = (result.auto.shotStationaryCount || 0) + 1;
+            }
             break;
           case 'collect':
             // Track by location (depot vs outpost)
@@ -225,6 +230,11 @@ export const gameDataTransformation: DataTransformation = {
         switch (wp.type) {
           case 'score':
             result.teleop.fuelScoredCount = (result.teleop.fuelScoredCount || 0) + Math.abs(wp.fuelDelta || 0);
+            if (wp.shotType === 'onTheMove') {
+              result.teleop.shotOnTheMoveCount = (result.teleop.shotOnTheMoveCount || 0) + 1;
+            } else if (wp.shotType === 'stationary') {
+              result.teleop.shotStationaryCount = (result.teleop.shotStationaryCount || 0) + 1;
+            }
             break;
           case 'pass':
             result.teleop.fuelPassedCount = (result.teleop.fuelPassedCount || 0) + Math.abs(wp.fuelDelta || 0);

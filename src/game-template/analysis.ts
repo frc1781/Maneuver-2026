@@ -79,6 +79,10 @@ export interface TeamStatsTemplate extends TeamStats {
     climbL3Count: number;
     climbSuccessRate: number;
     defenseRate: number;
+    autoShotOnTheMoveRate: number;
+    autoShotStationaryRate: number;
+    teleopShotOnTheMoveRate: number;
+    teleopShotStationaryRate: number;
 
     // Stuck metrics (percentage of matches)
     trenchStuckRate: number;
@@ -188,6 +192,10 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
                 climbL3Count: 0,
                 climbSuccessRate: 0,
                 defenseRate: 0,
+                autoShotOnTheMoveRate: 0,
+                autoShotStationaryRate: 0,
+                teleopShotOnTheMoveRate: 0,
+                teleopShotStationaryRate: 0,
                 trenchStuckRate: 0,
                 bumpStuckRate: 0,
                 brokeDownRate: 0,
@@ -247,6 +255,10 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             acc.climbL2 += gameData?.endgame?.climbL2 ? 1 : 0;
             acc.climbL3 += gameData?.endgame?.climbL3 ? 1 : 0;
             acc.defense += gameData?.teleop?.playedDefense ? 1 : 0;
+            acc.autoShotOnTheMove += Number(gameData?.auto?.shotOnTheMoveCount ?? 0);
+            acc.autoShotStationary += Number(gameData?.auto?.shotStationaryCount ?? 0);
+            acc.teleopShotOnTheMove += Number(gameData?.teleop?.shotOnTheMoveCount ?? 0);
+            acc.teleopShotStationary += Number(gameData?.teleop?.shotStationaryCount ?? 0);
 
             // Track stuck occurrences (any stuck in auto or teleop)
             acc.trenchStuck += (gameData?.auto?.trenchStuckCount || 0) > 0 || (gameData?.teleop?.trenchStuckCount || 0) > 0 ? 1 : 0;
@@ -293,6 +305,10 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             climbL2: 0,
             climbL3: 0,
             defense: 0,
+            autoShotOnTheMove: 0,
+            autoShotStationary: 0,
+            teleopShotOnTheMove: 0,
+            teleopShotStationary: 0,
             trenchStuck: 0,
             bumpStuck: 0,
             brokeDown: 0,
@@ -379,6 +395,8 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
         const avgTeleopClimbStartTimeSec = teleopClimbStartTimes.length > 0
             ? teleopClimbStartTimes.reduce((sum, time) => sum + time, 0) / teleopClimbStartTimes.length
             : 0;
+        const autoShotTypeTotal = totals.autoShotOnTheMove + totals.autoShotStationary;
+        const teleopShotTypeTotal = totals.teleopShotOnTheMove + totals.teleopShotStationary;
 
         // Calculate primary roles (most frequently played, supporting ties)
         const activeRoles = [
@@ -472,6 +490,10 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             climbL3Count: totals.climbL3,
             climbSuccessRate: Math.round((climbSuccessCount / matchCount) * 100),
             defenseRate: Math.round((totals.defense / matchCount) * 100),
+            autoShotOnTheMoveRate: autoShotTypeTotal > 0 ? Math.round((totals.autoShotOnTheMove / autoShotTypeTotal) * 100) : 0,
+            autoShotStationaryRate: autoShotTypeTotal > 0 ? Math.round((totals.autoShotStationary / autoShotTypeTotal) * 100) : 0,
+            teleopShotOnTheMoveRate: teleopShotTypeTotal > 0 ? Math.round((totals.teleopShotOnTheMove / teleopShotTypeTotal) * 100) : 0,
+            teleopShotStationaryRate: teleopShotTypeTotal > 0 ? Math.round((totals.teleopShotStationary / teleopShotTypeTotal) * 100) : 0,
             trenchStuckRate: Math.round((totals.trenchStuck / matchCount) * 100),
             bumpStuckRate: Math.round((totals.bumpStuck / matchCount) * 100),
             brokeDownRate: Math.round((totals.brokeDown / matchCount) * 100),
@@ -550,6 +572,8 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
                     { key: 'avgScaledAutoFuel', label: 'Scaled Fuel', type: 'number', color: 'green', subtitle: 'TBA-adjusted scout avg' },
                     { key: 'fuelAutoOPR', label: 'Fuel OPR', type: 'number', color: 'purple', subtitle: 'alliance decomposition' },
                     { key: 'maxAutoFuel', label: 'Max Fuel Scored', type: 'number', subtitle: 'best match' },
+                    { key: 'autoShotOnTheMoveRate', label: 'On The Move %', type: 'percentage', color: 'orange' },
+                    { key: 'autoShotStationaryRate', label: 'Stationary %', type: 'percentage', color: 'blue' },
                     { key: 'avgAutoFuelPassed', label: 'Fuel Passed', type: 'number', subtitle: 'avg per match' },
                     { key: 'maxAutoFuelPassed', label: 'Max Fuel Passed', type: 'number', subtitle: 'best match' },
                 ],
@@ -564,6 +588,8 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
                     { key: 'avgScaledTeleopFuel', label: 'Scaled Fuel', type: 'number', color: 'green', subtitle: 'TBA-adjusted scout avg' },
                     { key: 'fuelTeleopOPR', label: 'Fuel OPR', type: 'number', color: 'purple', subtitle: 'alliance decomposition' },
                     { key: 'maxTeleopFuel', label: 'Max Fuel Scored', type: 'number', subtitle: 'best match' },
+                    { key: 'teleopShotOnTheMoveRate', label: 'On The Move %', type: 'percentage', color: 'orange' },
+                    { key: 'teleopShotStationaryRate', label: 'Stationary %', type: 'percentage', color: 'blue' },
                     { key: 'avgTeleopFuelPassed', label: 'Fuel Passed', type: 'number', subtitle: 'avg per match' },
                     { key: 'maxTeleopFuelPassed', label: 'Max Fuel Passed', type: 'number', subtitle: 'best match' },
                 ],

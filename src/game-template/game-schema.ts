@@ -105,6 +105,18 @@ export const actions = {
         points: { auto: 1, teleop: 1 },
         pathType: 'score',
     },
+    shotOnTheMove: {
+        label: "Shot On The Move",
+        description: "Scored shot while robot was moving",
+        points: { auto: 0, teleop: 0 },
+        pathType: 'score',
+    },
+    shotStationary: {
+        label: "Shot Stationary",
+        description: "Scored shot while robot was stationary",
+        points: { auto: 0, teleop: 0 },
+        pathType: 'score',
+    },
     // Collection from depot (pathType: 'collect', action: 'depot')
     depotCollect: {
         label: "Depot Collection",
@@ -350,6 +362,8 @@ export const strategyColumns = {
         "rawValues.autoFuel": { label: "Auto Fuel", visible: true, numeric: true },
         "rawValues.scaledAutoFuel": { label: "Scaled Auto Fuel", visible: true, numeric: true },
         "fuelAutoOPR": { label: "Fuel OPR (Auto)", visible: true, numeric: true },
+        "autoShotOnTheMoveRate": { label: "Auto Shot On Move %", visible: true, numeric: true, percentage: true },
+        "autoShotStationaryRate": { label: "Auto Shot Stationary %", visible: true, numeric: true, percentage: true },
         "autoClimbRate": { label: "Auto Climb %", visible: true, numeric: true, percentage: true },
         "rawValues.autoClimbStartTimeSec": { label: "Auto Climb Start (s)", visible: true, numeric: true },
         "rawValues.autoTrenchStuckDuration": { label: "Auto Trench Stuck", visible: false, numeric: true },
@@ -360,6 +374,8 @@ export const strategyColumns = {
         "rawValues.teleopFuel": { label: "Teleop Fuel", visible: true, numeric: true },
         "rawValues.scaledTeleopFuel": { label: "Scaled Teleop Fuel", visible: true, numeric: true },
         "fuelTeleopOPR": { label: "Fuel OPR (Teleop)", visible: true, numeric: true },
+        "teleopShotOnTheMoveRate": { label: "Teleop Shot On Move %", visible: true, numeric: true, percentage: true },
+        "teleopShotStationaryRate": { label: "Teleop Shot Stationary %", visible: true, numeric: true, percentage: true },
         "rawValues.teleopFuelPassed": { label: "Teleop Passed", visible: false, numeric: true },
         "teleop.defenseRate": { label: "Defense %", visible: false, numeric: true, percentage: true },
         "endgame.usedTrenchInTeleopRate": { label: "Used Trench %", visible: false, numeric: true, percentage: true },
@@ -385,8 +401,8 @@ export const strategyColumns = {
  */
 export const strategyPresets: Record<string, string[]> = {
     essential: ["teamNumber", "matchCount", "rawValues.totalPoints", "rawValues.scaledTotalFuel", "fuelTotalOPR", "endgame.climbSuccessRate"],
-    auto: ["teamNumber", "matchCount", "rawValues.autoPoints", "rawValues.autoFuel", "rawValues.scaledAutoFuel", "fuelAutoOPR", "autoClimbRate", "rawValues.autoClimbStartTimeSec"],
-    teleop: ["teamNumber", "matchCount", "rawValues.teleopPoints", "rawValues.teleopFuel", "rawValues.scaledTeleopFuel", "fuelTeleopOPR", "rawValues.teleopFuelPassed", "endgame.usedTrenchInTeleopRate", "endgame.usedBumpInTeleopRate", "endgame.passedToAllianceFromNeutralRate", "endgame.passedToAllianceFromOpponentRate", "endgame.passedToNeutralRate"],
+    auto: ["teamNumber", "matchCount", "rawValues.autoPoints", "rawValues.autoFuel", "rawValues.scaledAutoFuel", "fuelAutoOPR", "autoShotOnTheMoveRate", "autoShotStationaryRate", "autoClimbRate", "rawValues.autoClimbStartTimeSec"],
+    teleop: ["teamNumber", "matchCount", "rawValues.teleopPoints", "rawValues.teleopFuel", "rawValues.scaledTeleopFuel", "fuelTeleopOPR", "teleopShotOnTheMoveRate", "teleopShotStationaryRate", "rawValues.teleopFuelPassed", "endgame.usedTrenchInTeleopRate", "endgame.usedBumpInTeleopRate", "endgame.passedToAllianceFromNeutralRate", "endgame.passedToAllianceFromOpponentRate", "endgame.passedToNeutralRate"],
     endgame: ["teamNumber", "matchCount", "rawValues.endgamePoints", "rawValues.endgameClimbStartTimeSec", "endgame.climbL1Rate", "endgame.climbL2Rate", "endgame.climbL3Rate"],
     basic: ["teamNumber", "eventKey", "matchCount"],
 };

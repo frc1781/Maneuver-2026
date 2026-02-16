@@ -22,20 +22,24 @@ interface ScoutOptionsSheetProps {
   options: ScoutOptionsState;
   onOptionChange: (key: string, value: boolean) => void;
   customContent?: ComponentType<ScoutOptionsContentProps>;
+  trigger?: React.ReactNode;
 }
 
 export function ScoutOptionsSheet({
   options,
   onOptionChange,
   customContent: CustomContent,
+  trigger,
 }: ScoutOptionsSheetProps) {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Settings2 className="h-4 w-4 mr-2" />
-          Scout Options
-        </Button>
+        {trigger ?? (
+          <Button variant="outline" size="sm">
+            <Settings2 className="h-4 w-4 mr-2" />
+            Scout Options
+          </Button>
+        )}
       </SheetTrigger>
 
       <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">

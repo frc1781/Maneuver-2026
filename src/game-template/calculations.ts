@@ -77,6 +77,12 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
     const totalFuelScored = autoFuelTotal + teleopFuelTotal;
     const totalFuelPassed = autoFuelPassedTotal + teleopFuelPassedTotal;
     const totalPieces = totalFuelScored; // For compatibility
+    const autoShotOnTheMoveTotal = sum(teamMatches, m => val(m.gameData?.auto?.shotOnTheMoveCount));
+    const autoShotStationaryTotal = sum(teamMatches, m => val(m.gameData?.auto?.shotStationaryCount));
+    const teleopShotOnTheMoveTotal = sum(teamMatches, m => val(m.gameData?.teleop?.shotOnTheMoveCount));
+    const teleopShotStationaryTotal = sum(teamMatches, m => val(m.gameData?.teleop?.shotStationaryCount));
+    const autoShotTypeTotal = autoShotOnTheMoveTotal + autoShotStationaryTotal;
+    const teleopShotTypeTotal = teleopShotOnTheMoveTotal + teleopShotStationaryTotal;
 
     // ============================================================================
     // AUTO PHASE STATS
@@ -320,6 +326,10 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
         fuelAutoOPR: 0,
         fuelTeleopOPR: 0,
         fuelTotalOPR: 0,
+        autoShotOnTheMoveRate: percent(autoShotOnTheMoveTotal, autoShotTypeTotal),
+        autoShotStationaryRate: percent(autoShotStationaryTotal, autoShotTypeTotal),
+        teleopShotOnTheMoveRate: percent(teleopShotOnTheMoveTotal, teleopShotTypeTotal),
+        teleopShotStationaryRate: percent(teleopShotStationaryTotal, teleopShotTypeTotal),
         autoClimbRate: percent(autoClimbCount, matchCount),
         autoClimbAttempts: autoClimbCount,
         climbL1Rate: percent(climbL1Count, matchCount),
@@ -350,6 +360,8 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
             mobilityRate: 0, // Not applicable in 2026
             autoClimbRate: percent(autoClimbCount, matchCount),
             avgFuelScored: round(autoFuelTotal / matchCount),
+            shotOnTheMoveRate: percent(autoShotOnTheMoveTotal, autoShotTypeTotal),
+            shotStationaryRate: percent(autoShotStationaryTotal, autoShotTypeTotal),
             startPositions,
             // 2026-specific stuck stats
             avgTrenchStuck: round(autoTrenchStuckTotal / matchCount),
@@ -365,6 +377,8 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
             avgGamePiece2: round(teleopFuelPassedTotal / matchCount), // Teleop passed
             avgFuelScored: round(teleopFuelTotal / matchCount),
             avgFuelPassed: round(teleopFuelPassedTotal / matchCount),
+            shotOnTheMoveRate: percent(teleopShotOnTheMoveTotal, teleopShotTypeTotal),
+            shotStationaryRate: percent(teleopShotStationaryTotal, teleopShotTypeTotal),
             defenseRate: percent(defenseCount, matchCount),
             // 2026-specific detailed stats
             totalDefenseActions: round(totalDefenseActions / matchCount),
@@ -491,5 +505,9 @@ function getEmptyStats(): Omit<TeamStats, 'teamNumber' | 'eventKey'> {
         fuelAutoOPR: 0,
         fuelTeleopOPR: 0,
         fuelTotalOPR: 0,
+        autoShotOnTheMoveRate: 0,
+        autoShotStationaryRate: 0,
+        teleopShotOnTheMoveRate: 0,
+        teleopShotStationaryRate: 0,
     };
 }

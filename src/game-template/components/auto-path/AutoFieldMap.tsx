@@ -35,6 +35,7 @@ import {
     FieldHeader,
     FieldButton,
     PendingWaypointPopup,
+    ShotTypePopup,
     usePathDrawing,
     FieldCanvas,
     type FieldCanvasRef,
@@ -71,6 +72,23 @@ const START_KEY_LABELS: Record<'trench1' | 'bump1' | 'hub' | 'bump2' | 'trench2'
     hub: 'Hub',
     bump2: 'Right Bump',
     trench2: 'Right Trench',
+};
+
+const MOVING_SHOT_MIN_PATH_LENGTH = 0.05;
+
+const getPathLength = (points: { x: number; y: number }[]): number => {
+    if (points.length < 2) return 0;
+
+    let length = 0;
+    for (let index = 1; index < points.length; index += 1) {
+        const previous = points[index - 1]!;
+        const current = points[index]!;
+        const deltaX = current.x - previous.x;
+        const deltaY = current.y - previous.y;
+        length += Math.hypot(deltaX, deltaY);
+    }
+
+    return length;
 };
 
 
@@ -206,6 +224,7 @@ function AutoFieldMapContent({
     const [currentZone, setCurrentZone] = useState<ZoneType>('allianceZone');
     const [robotCapacity, setRobotCapacity] = useState<number | undefined>();
     const [actionLogOpen, setActionLogOpen] = useState(false);
+    const [pendingShotTypeWaypoint, setPendingShotTypeWaypoint] = useState<PathWaypoint | null>(null);
 
     // Broken down state - persisted with localStorage
     const [brokenDownStart, setBrokenDownStart] = useState<number | null>(() => {
@@ -433,7 +452,7 @@ function AutoFieldMapContent({
         }
 
         // Block clicks while any popup is active or robot is stuck elsewhere or broken down
-        if (pendingWaypoint || isSelectingScore || isSelectingPass || isSelectingCollect || selectedStartKey || isAnyStuck || isBrokenDown) {
+        if (pendingWaypoint || pendingShotTypeWaypoint || isSelectingScore || isSelectingPass || isSelectingCollect || selectedStartKey || isAnyStuck || isBrokenDown) {
             return;
         }
 
@@ -508,6 +527,10 @@ function AutoFieldMapContent({
         const pos = points[0]!;
 
         if (isSelectingScore) {
+            const inferredShotType = shouldUsePath
+                ? (getPathLength(points) >= MOVING_SHOT_MIN_PATH_LENGTH ? 'onTheMove' : 'stationary')
+                : 'stationary';
+
             const waypoint: PathWaypoint = {
                 id: generateId(),
                 type: 'score',
@@ -517,16 +540,28 @@ function AutoFieldMapContent({
                 amountLabel: disableHubFuelScoringPopup ? undefined : '...',
                 timestamp: Date.now(),
                 pathPoints: shouldUsePath ? points : undefined,
+                shotType: inferredShotType,
             };
-            if (disableHubFuelScoringPopup) {
-                onAddAction(waypoint);
+            if (disablePathDrawingTapOnly) {
+                setPendingShotTypeWaypoint({
+                    ...waypoint,
+                    action: 'hub',
+                    pathPoints: undefined,
+                });
                 setAccumulatedFuel(0);
                 setFuelHistory([]);
                 setPendingWaypoint(null);
             } else {
-                setAccumulatedFuel(0);
-                setFuelHistory([]);
-                setPendingWaypoint(waypoint);
+                if (disableHubFuelScoringPopup) {
+                    onAddAction(waypoint);
+                    setAccumulatedFuel(0);
+                    setFuelHistory([]);
+                    setPendingWaypoint(null);
+                } else {
+                    setAccumulatedFuel(0);
+                    setFuelHistory([]);
+                    setPendingWaypoint(waypoint);
+                }
             }
             setIsSelectingScore(false);
         } else if (isSelectingPass) {
@@ -572,6 +607,24 @@ function AutoFieldMapContent({
             setIsSelectingCollect(false);
         }
         resetDrawing();
+    };
+
+    const handleShotTypeSelected = (shotType: 'onTheMove' | 'stationary') => {
+        if (!pendingShotTypeWaypoint) return;
+
+        const scoredWaypoint: PathWaypoint = {
+            ...pendingShotTypeWaypoint,
+            shotType,
+        };
+
+        if (disableHubFuelScoringPopup) {
+            onAddAction(scoredWaypoint);
+            setPendingWaypoint(null);
+        } else {
+            setPendingWaypoint(scoredWaypoint);
+        }
+
+        setPendingShotTypeWaypoint(null);
     };
 
     // Undo wrapper that also clears active broken down state
@@ -713,7 +766,7 @@ function AutoFieldMapContent({
                 />
 
                 {/* Overlay Buttons */}
-                {!isSelectingScore && !isSelectingPass && !isSelectingCollect && (
+                {!pendingShotTypeWaypoint && !isSelectingScore && !isSelectingPass && !isSelectingCollect && (
                     <div className="absolute inset-0 z-10">
                         {actions.length === 0 ? (
                             <>
@@ -760,7 +813,7 @@ function AutoFieldMapContent({
                 )}
 
                 {/* Score Selection Overlay */}
-                {isSelectingScore && (
+                {isSelectingScore && !pendingShotTypeWaypoint && (
                     <div className={cn("absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none", isFieldRotated && "rotate-180")}>
                         <Card className="pointer-events-auto bg-background/95 backdrop-blur-sm border-green-500/50 shadow-2xl py-2 px-3 flex flex-row items-center gap-4">
                             <Badge variant="default" className="bg-green-600">SCORING MODE</Badge>
@@ -780,7 +833,7 @@ function AutoFieldMapContent({
                 )}
 
                 {/* Pass Selection Overlay */}
-                {isSelectingPass && (
+                {isSelectingPass && !pendingShotTypeWaypoint && (
                     <div className={cn("absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none", isFieldRotated && "rotate-180")}>
                         <Card className="pointer-events-auto bg-background/95 backdrop-blur-sm border-purple-500/50 shadow-2xl py-2 px-3 flex flex-row items-center gap-4">
                             <Badge variant="default" className="bg-purple-600">PASSING MODE</Badge>
@@ -800,7 +853,7 @@ function AutoFieldMapContent({
                 )}
 
                 {/* Collect Selection Overlay */}
-                {isSelectingCollect && (
+                {isSelectingCollect && !pendingShotTypeWaypoint && (
                     <div className={cn("absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none", isFieldRotated && "rotate-180")}>
                         <Card className="pointer-events-auto bg-background/95 backdrop-blur-sm border-yellow-500/50 shadow-2xl py-2 px-3 flex flex-row items-center gap-4">
                             <Badge variant="default" className="bg-yellow-600">COLLECT MODE</Badge>
@@ -846,6 +899,18 @@ function AutoFieldMapContent({
                         onProceed={onProceed}
                         onStay={() => setShowPostClimbProceed(false)}
                         nextPhaseName="Teleop"
+                    />
+                )}
+
+                {pendingShotTypeWaypoint && (
+                    <ShotTypePopup
+                        isFieldRotated={isFieldRotated}
+                        onSelect={handleShotTypeSelected}
+                        onCancel={() => {
+                            setPendingShotTypeWaypoint(null);
+                            setPendingWaypoint(null);
+                            resetDrawing();
+                        }}
                     />
                 )}
 

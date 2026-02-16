@@ -34,6 +34,7 @@ import {
     getVisibleElements,
     ZoneOverlay,
     PendingWaypointPopup,
+    ShotTypePopup,
 } from '../field-map';
 
 // Context hooks
@@ -65,6 +66,23 @@ export interface TeleopFieldMapProps {
     onBack?: () => void;
     onProceed?: (finalActions?: PathWaypoint[]) => void;
 }
+
+const MOVING_SHOT_MIN_PATH_LENGTH = 0.05;
+
+const getPathLength = (points: { x: number; y: number }[]): number => {
+    if (points.length < 2) return 0;
+
+    let length = 0;
+    for (let index = 1; index < points.length; index += 1) {
+        const previous = points[index - 1]!;
+        const current = points[index]!;
+        const deltaX = current.x - previous.x;
+        const deltaY = current.y - previous.y;
+        length += Math.hypot(deltaX, deltaY);
+    }
+
+    return length;
+};
 
 // =============================================================================
 // WRAPPER COMPONENT - Provides Context
@@ -160,6 +178,7 @@ function TeleopFieldMapContent() {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [robotCapacity, setRobotCapacity] = useState<number | undefined>();
     const [actionLogOpen, setActionLogOpen] = useState(false);
+    const [pendingShotTypeWaypoint, setPendingShotTypeWaypoint] = useState<PathWaypoint | null>(null);
 
     // Broken down state - persisted with localStorage
     const [brokenDownStart, setBrokenDownStart] = useState<number | null>(() => {
@@ -271,6 +290,10 @@ function TeleopFieldMapContent() {
         const endPos = points[points.length - 1] || points[0]!;
 
         if (isSelectingScore) {
+            const inferredShotType = shouldUsePath
+                ? (getPathLength(points) >= MOVING_SHOT_MIN_PATH_LENGTH ? 'onTheMove' : 'stationary')
+                : 'stationary';
+
             const waypoint: PathWaypoint = {
                 id: generateId(),
                 type: 'score',
@@ -280,17 +303,29 @@ function TeleopFieldMapContent() {
                 amountLabel: disableHubFuelScoringPopup ? undefined : '...',
                 timestamp: Date.now(),
                 pathPoints: shouldUsePath ? points : undefined,
+                shotType: inferredShotType,
                 zone: 'allianceZone',
             };
-            if (disableHubFuelScoringPopup) {
-                onAddAction(waypoint);
+            if (disablePathDrawingTapOnly) {
+                setPendingShotTypeWaypoint({
+                    ...waypoint,
+                    action: 'hub',
+                    pathPoints: undefined,
+                });
                 setAccumulatedFuel(0);
                 setFuelHistory([]);
                 setPendingWaypoint(null);
             } else {
-                setAccumulatedFuel(0);
-                setFuelHistory([]);
-                setPendingWaypoint(waypoint);
+                if (disableHubFuelScoringPopup) {
+                    onAddAction(waypoint);
+                    setAccumulatedFuel(0);
+                    setFuelHistory([]);
+                    setPendingWaypoint(null);
+                } else {
+                    setAccumulatedFuel(0);
+                    setFuelHistory([]);
+                    setPendingWaypoint(waypoint);
+                }
             }
             setIsSelectingScore(false);
         } else if (isSelectingPass) {
@@ -333,9 +368,27 @@ function TeleopFieldMapContent() {
         onAddAction,
     ]);
 
+    const handleShotTypeSelected = (shotType: 'onTheMove' | 'stationary') => {
+        if (!pendingShotTypeWaypoint) return;
+
+        const scoredWaypoint: PathWaypoint = {
+            ...pendingShotTypeWaypoint,
+            shotType,
+        };
+
+        if (disableHubFuelScoringPopup) {
+            onAddAction(scoredWaypoint);
+            setPendingWaypoint(null);
+        } else {
+            setPendingWaypoint(scoredWaypoint);
+        }
+
+        setPendingShotTypeWaypoint(null);
+    };
+
     const handleElementClick = (elementKey: string) => {
         // Block if popup active or broken down
-        if (pendingWaypoint || isSelectingScore || isSelectingPass || isBrokenDown) return;
+        if (pendingWaypoint || pendingShotTypeWaypoint || isSelectingScore || isSelectingPass || isBrokenDown) return;
 
         const element = FIELD_ELEMENTS[elementKey];
         if (!element) return;
@@ -604,7 +657,7 @@ function TeleopFieldMapContent() {
                     />
 
                     {/* Zone Overlays - show inactive zones for quick switching */}
-                    {!pendingWaypoint && !isSelectingScore && !isSelectingPass && (
+                    {!pendingWaypoint && !pendingShotTypeWaypoint && !isSelectingScore && !isSelectingPass && (
                         <>
                             <ZoneOverlay
                                 zone="allianceZone"
@@ -676,7 +729,7 @@ function TeleopFieldMapContent() {
                     )}
 
                     {/* Score/Pass Mode Overlay */}
-                    {(isSelectingScore || isSelectingPass) && (
+                    {!pendingShotTypeWaypoint && (isSelectingScore || isSelectingPass) && (
                         <div className={cn(
                             "absolute inset-x-0 top-0 z-20 flex items-center justify-center p-2",
                             "bg-gradient-to-b from-slate-900/90 to-transparent",
@@ -736,6 +789,18 @@ function TeleopFieldMapContent() {
                                 }
                             } : handleFuelConfirm}
                             onCancel={pendingWaypoint.type === 'climb' ? handleClimbCancel : handleFuelCancel}
+                        />
+                    )}
+
+                    {pendingShotTypeWaypoint && (
+                        <ShotTypePopup
+                            isFieldRotated={isFieldRotated}
+                            onSelect={handleShotTypeSelected}
+                            onCancel={() => {
+                                setPendingShotTypeWaypoint(null);
+                                setPendingWaypoint(null);
+                                resetDrawing();
+                            }}
                         />
                     )}
 
