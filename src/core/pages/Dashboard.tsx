@@ -2,6 +2,7 @@ import { AppSidebar } from "@/core/components/dashboard/app-sidebar"
 import { SiteHeader } from "@/core/components/dashboard/site-header"
 import { BottomNavigation } from "@/core/components/BottomNavigation"
 import { ScrollToTop } from "@/core/components/ScrollToTop"
+import { useFullscreen } from "@/core/hooks/useFullscreen"
 import {
     SidebarInset,
     SidebarProvider,
@@ -12,6 +13,8 @@ import { Outlet } from "react-router-dom"
 
 
 export default function Dashboard() {
+    const { isFullscreen } = useFullscreen();
+
     return (
         <SidebarProvider
             style={
@@ -30,7 +33,7 @@ export default function Dashboard() {
                 >
                     <Outlet />
                 </div>
-                <BottomNavigation />
+                {!isFullscreen && <BottomNavigation />}
             </SidebarInset>
         </SidebarProvider>
     )

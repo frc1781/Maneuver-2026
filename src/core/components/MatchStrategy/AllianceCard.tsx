@@ -5,12 +5,15 @@
  * Contains 3 team slots with selectors and stats display.
  */
 
+import { useMemo, useState } from "react";
 import { Card } from "@/core/components/ui/card";
 import { Button } from "@/core/components/ui/button";
 import { TeamSelector } from "./TeamSelector";
 import { TeamStatsDetail } from "./TeamStatsDetail";
 import { TeamStatsHeaders } from "./TeamStatsHeaders";
+import { AutoRoutineDialog } from "./AutoRoutineDialog";
 import type { TeamStats } from "@/core/types/team-stats";
+import type { AutoRoutineSelection, AutoRoutineSource, StrategyAutoRoutine } from "@/core/hooks/useMatchStrategy";
 
 interface TeamSlotSpotVisibility {
     showShooting: boolean;
@@ -26,6 +29,10 @@ interface AllianceCardProps {
     teamSlotSpotVisibility: TeamSlotSpotVisibility[];
     onTeamSlotSpotToggle: (index: number, type: 'shooting' | 'passing') => void;
     onTeamChange: (index: number, teamNumber: number | null) => void;
+    getTeamAutoRoutines: (teamNumber: number | null, source: AutoRoutineSource) => StrategyAutoRoutine[];
+    getSelectedAutoRoutineForSlot: (slotIndex: number) => StrategyAutoRoutine | null;
+    getSelectedAutoRoutineSelectionForSlot: (slotIndex: number) => AutoRoutineSelection | null;
+    onSelectAutoRoutineForSlot: (slotIndex: number, selection: AutoRoutineSelection | null) => void;
     onTouchStart?: (e: React.TouchEvent) => void;
     onTouchEnd?: (e: React.TouchEvent) => void;
 }
@@ -39,6 +46,10 @@ export const AllianceCard = ({
     teamSlotSpotVisibility,
     onTeamSlotSpotToggle,
     onTeamChange,
+    getTeamAutoRoutines,
+    getSelectedAutoRoutineForSlot,
+    getSelectedAutoRoutineSelectionForSlot,
+    onSelectAutoRoutineForSlot,
     onTouchStart,
     onTouchEnd
 }: AllianceCardProps) => {
@@ -46,6 +57,25 @@ export const AllianceCard = ({
     const startIndex = isBlue ? 3 : 0;
     const borderColor = isBlue ? 'border-blue-200 dark:border-blue-800' : 'border-red-200 dark:border-red-800';
     const textColor = isBlue ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400';
+    const [activeRoutineSlot, setActiveRoutineSlot] = useState<number | null>(null);
+
+    const activeRoutineTeam = activeRoutineSlot !== null
+        ? selectedTeams[activeRoutineSlot] ?? null
+        : null;
+
+    const activeScoutedRoutines = useMemo(
+        () => getTeamAutoRoutines(activeRoutineTeam, 'scouted'),
+        [activeRoutineTeam, getTeamAutoRoutines]
+    );
+
+    const activeReportedRoutines = useMemo(
+        () => getTeamAutoRoutines(activeRoutineTeam, 'reported'),
+        [activeRoutineTeam, getTeamAutoRoutines]
+    );
+
+    const activeSelection = activeRoutineSlot !== null
+        ? getSelectedAutoRoutineSelectionForSlot(activeRoutineSlot)
+        : null;
 
     return (
         <div className="flex-1" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
@@ -111,7 +141,23 @@ export const AllianceCard = ({
                                         >
                                             Passing Spots
                                         </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 px-2 text-xs"
+                                            disabled={!team}
+                                            onClick={() => setActiveRoutineSlot(teamIndex)}
+                                        >
+                                            Auto Routine
+                                        </Button>
                                     </div>
+
+                                    {team && getSelectedAutoRoutineForSlot(teamIndex) ? (
+                                        <p className="text-xs text-muted-foreground">
+                                            Selected Auto: {getSelectedAutoRoutineForSlot(teamIndex)?.label}
+                                        </p>
+                                    ) : null}
 
                                     {/* Team Stats */}
                                     {team && stats ? (
@@ -130,6 +176,23 @@ export const AllianceCard = ({
                     })}
                 </div>
             </div>
+
+            <AutoRoutineDialog
+                open={activeRoutineSlot !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setActiveRoutineSlot(null);
+                    }
+                }}
+                teamNumber={activeRoutineTeam}
+                selectedSelection={activeSelection}
+                scoutedRoutines={activeScoutedRoutines}
+                reportedRoutines={activeReportedRoutines}
+                onSelectRoutine={(selection) => {
+                    if (activeRoutineSlot === null) return;
+                    onSelectAutoRoutineForSlot(activeRoutineSlot, selection);
+                }}
+            />
         </div>
     );
 };

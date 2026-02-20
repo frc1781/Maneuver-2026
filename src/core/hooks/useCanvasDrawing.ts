@@ -14,6 +14,7 @@ interface UseCanvasDrawingProps {
   brushColor: string;
   isErasing: boolean;
   onSave: () => void;
+  onTap?: (point: Point) => void;
   selectedTeams?: (number | null)[]; // Kept for API compatibility, but no longer used
 }
 
@@ -23,6 +24,7 @@ export const useCanvasDrawing = ({
   brushColor,
   isErasing,
   onSave,
+  onTap,
 }: UseCanvasDrawingProps) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [lastPoint, setLastPoint] = useState<Point | null>(null);
@@ -34,6 +36,8 @@ export const useCanvasDrawing = ({
   // etc.
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(0);
+  const startPointRef = useRef<Point | null>(null);
+  const hasMovedRef = useRef(false);
 
   const getPointFromEvent = useCallback((e: React.MouseEvent | React.PointerEvent): Point => {
     const canvas = canvasRef.current;
@@ -159,6 +163,8 @@ export const useCanvasDrawing = ({
     setIsDrawing(true);
     const point = getPointFromEvent(e);
     setLastPoint(point);
+    startPointRef.current = point;
+    hasMovedRef.current = false;
   }, [getPointFromEvent]);
 
   const draw = useCallback((e: React.MouseEvent | React.PointerEvent) => {
@@ -172,6 +178,13 @@ export const useCanvasDrawing = ({
     if (!canvas || !ctx) return;
 
     const currentPoint = getPointFromEvent(e);
+
+    if (!hasMovedRef.current) {
+      const distanceFromStart = Math.hypot(currentPoint.x - lastPoint.x, currentPoint.y - lastPoint.y);
+      if (distanceFromStart > 4) {
+        hasMovedRef.current = true;
+      }
+    }
 
     ctx.lineWidth = brushSize;
     ctx.lineCap = 'round';
@@ -211,13 +224,20 @@ export const useCanvasDrawing = ({
     }
 
     if (isDrawing) {
-      // Save state AFTER stroke completes
-      saveToHistory();
-      onSave();
+      const startedAt = startPointRef.current;
+      if (!hasMovedRef.current && startedAt) {
+        onTap?.(startedAt);
+      } else {
+        // Save state AFTER stroke completes
+        saveToHistory();
+        onSave();
+      }
     }
     setIsDrawing(false);
     setLastPoint(null);
-  }, [isDrawing, onSave, saveToHistory]);
+    startPointRef.current = null;
+    hasMovedRef.current = false;
+  }, [isDrawing, onSave, saveToHistory, onTap]);
 
   const canvasStyle: React.CSSProperties = {
     userSelect: 'none',

@@ -7,11 +7,13 @@
 
 import { useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/core/components/ui/card";
+import { Button } from "@/core/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/core/components/animate-ui/radix/tabs";
 import { AllianceCard } from "./AllianceCard";
 import { AllianceSelectionControls } from "./AllianceSelectionControls";
 import type { Alliance } from "@/core/lib/allianceTypes";
 import type { TeamStats } from "@/core/types/team-stats";
+import type { AutoRoutineSelection, AutoRoutineSource, StrategyAutoRoutine } from "@/core/hooks/useMatchStrategy";
 
 interface TeamSlotSpotVisibility {
     showShooting: boolean;
@@ -28,7 +30,12 @@ interface TeamAnalysisProps {
     getTeamStats: (teamNumber: number | null) => TeamStats | null;
     teamSlotSpotVisibility: TeamSlotSpotVisibility[];
     onTeamSlotSpotToggle: (index: number, type: 'shooting' | 'passing') => void;
+    onSetAllSpotVisibility: (type: 'shooting' | 'passing', enabled: boolean) => void;
     onTeamChange: (index: number, teamNumber: number | null) => void;
+    getTeamAutoRoutines: (teamNumber: number | null, source: AutoRoutineSource) => StrategyAutoRoutine[];
+    getSelectedAutoRoutineForSlot: (slotIndex: number) => StrategyAutoRoutine | null;
+    getSelectedAutoRoutineSelectionForSlot: (slotIndex: number) => AutoRoutineSelection | null;
+    onSelectAutoRoutineForSlot: (slotIndex: number, selection: AutoRoutineSelection | null) => void;
     onStatsTabChange: (value: string) => void;
     onBlueAllianceChange: (allianceId: string) => void;
     onRedAllianceChange: (allianceId: string) => void;
@@ -44,7 +51,12 @@ export const TeamAnalysis = ({
     getTeamStats,
     teamSlotSpotVisibility,
     onTeamSlotSpotToggle,
+    onSetAllSpotVisibility,
     onTeamChange,
+    getTeamAutoRoutines,
+    getSelectedAutoRoutineForSlot,
+    getSelectedAutoRoutineSelectionForSlot,
+    onSelectAutoRoutineForSlot,
     onStatsTabChange,
     onBlueAllianceChange,
     onRedAllianceChange
@@ -110,6 +122,45 @@ export const TeamAnalysis = ({
                         <TabsTrigger value="endgame">Endgame</TabsTrigger>
                     </TabsList>
                 </Tabs>
+
+                <div className="flex flex-wrap gap-2 pt-1">
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="default"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => onSetAllSpotVisibility('shooting', true)}
+                    >
+                        Select All Shooting
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => onSetAllSpotVisibility('shooting', false)}
+                    >
+                        Deselect Shooting
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="default"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => onSetAllSpotVisibility('passing', true)}
+                    >
+                        Select All Passing
+                    </Button>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => onSetAllSpotVisibility('passing', false)}
+                    >
+                        Deselect Passing
+                    </Button>
+                </div>
             </CardHeader>
 
             <CardContent>
@@ -123,6 +174,10 @@ export const TeamAnalysis = ({
                         teamSlotSpotVisibility={teamSlotSpotVisibility}
                         onTeamSlotSpotToggle={onTeamSlotSpotToggle}
                         onTeamChange={onTeamChange}
+                        getTeamAutoRoutines={getTeamAutoRoutines}
+                        getSelectedAutoRoutineForSlot={getSelectedAutoRoutineForSlot}
+                        getSelectedAutoRoutineSelectionForSlot={getSelectedAutoRoutineSelectionForSlot}
+                        onSelectAutoRoutineForSlot={onSelectAutoRoutineForSlot}
                         onTouchStart={handleAllianceCardTouchStart}
                         onTouchEnd={handleAllianceCardTouchEnd}
                     />
@@ -138,6 +193,10 @@ export const TeamAnalysis = ({
                         teamSlotSpotVisibility={teamSlotSpotVisibility}
                         onTeamSlotSpotToggle={onTeamSlotSpotToggle}
                         onTeamChange={onTeamChange}
+                        getTeamAutoRoutines={getTeamAutoRoutines}
+                        getSelectedAutoRoutineForSlot={getSelectedAutoRoutineForSlot}
+                        getSelectedAutoRoutineSelectionForSlot={getSelectedAutoRoutineSelectionForSlot}
+                        onSelectAutoRoutineForSlot={onSelectAutoRoutineForSlot}
                         onTouchStart={handleAllianceCardTouchStart}
                         onTouchEnd={handleAllianceCardTouchEnd}
                     />

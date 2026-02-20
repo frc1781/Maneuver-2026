@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { CANVAS_CONSTANTS } from "../lib/canvasConstants";
-import { drawTeamNumbersAndSpots } from "../lib/canvasUtils";
-import type { StrategyStageId, TeamStageSpots } from "@/core/hooks/useMatchStrategy";
+import { drawSelectedAutoRoutines, drawTeamNumbersAndSpots } from "../lib/canvasUtils";
+import type { StrategyAutoRoutine, StrategyStageId, TeamStageSpots } from "@/core/hooks/useMatchStrategy";
 
 interface TeamSlotSpotVisibility {
   showShooting: boolean;
@@ -31,6 +31,8 @@ interface UseCanvasSetupProps {
   selectedTeams?: (number | null)[];
   teamSlotSpotVisibility?: TeamSlotSpotVisibility[];
   getTeamSpots?: (teamNumber: number | null, stageId: StrategyStageId) => TeamStageSpots;
+  selectedAutoRoutinesBySlot?: (StrategyAutoRoutine | null)[];
+  isolatedAutoSlot?: number | null;
   onCanvasReady?: () => void;
   onDimensionsChange?: (dimensions: { width: number; height: number }) => void;
 }
@@ -49,6 +51,8 @@ export const useCanvasSetup = ({
   selectedTeams = [],
   teamSlotSpotVisibility = [],
   getTeamSpots,
+  selectedAutoRoutinesBySlot = [],
+  isolatedAutoSlot = null,
   onCanvasReady,
   onDimensionsChange
 }: UseCanvasSetupProps) => {
@@ -155,6 +159,15 @@ export const useCanvasSetup = ({
           teamSlotSpotVisibility,
           getTeamSpots
         );
+        drawSelectedAutoRoutines(
+          overlayCtx,
+          canvasWidth,
+          canvasHeight,
+          selectedTeams,
+          currentStageId as StrategyStageId,
+          selectedAutoRoutinesBySlot,
+          isolatedAutoSlot
+        );
 
         // LAYER 3: Load saved drawings or start fresh
         drawingCtx.clearRect(0, 0, canvasWidth, canvasHeight);
@@ -195,7 +208,16 @@ export const useCanvasSetup = ({
       teamSlotSpotVisibility,
       getTeamSpots
     );
-  }, [selectedTeams, currentStageId, teamSlotSpotVisibility, getTeamSpots, overlayCanvasRef]);
+    drawSelectedAutoRoutines(
+      ctx,
+      overlayCanvas.width,
+      overlayCanvas.height,
+      selectedTeams,
+      currentStageId as StrategyStageId,
+      selectedAutoRoutinesBySlot,
+      isolatedAutoSlot
+    );
+  }, [selectedTeams, currentStageId, teamSlotSpotVisibility, getTeamSpots, selectedAutoRoutinesBySlot, isolatedAutoSlot, overlayCanvasRef]);
 
   useEffect(() => {
     setupCanvas();

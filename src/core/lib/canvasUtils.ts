@@ -5,12 +5,14 @@
  */
 
 import { CANVAS_CONSTANTS } from "./canvasConstants";
+import type { StrategyAutoRoutine } from "@/core/hooks/useMatchStrategy";
 
 type StrategyStageId = 'autonomous' | 'teleop' | 'endgame';
 
 interface TeamSpotPoint {
     x: number;
     y: number;
+    pathPoints?: Array<{ x: number; y: number }>;
 }
 
 interface TeamStageSpots {
@@ -124,7 +126,7 @@ const transformSpotForSlot = (spot: TeamSpotPoint, slotIndex: number): TeamSpotP
 
 const getSlotShapeIndex = (slotIndex: number): number => {
     // Keep same shape per slot position across alliances:
-    // slot 1 -> circle, slot 2 -> triangle, slot 3 -> star
+    // slot 1 -> triangle, slot 2 -> circle, slot 3 -> square
     return slotIndex % 3;
 };
 
@@ -140,12 +142,6 @@ const drawSlotShapePath = (
     ctx.beginPath();
 
     if (shapeIndex === 0) {
-        // Circle
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        return;
-    }
-
-    if (shapeIndex === 1) {
         // Triangle (pointing up)
         const angleOffset = -Math.PI / 2;
         for (let i = 0; i < 3; i++) {
@@ -159,21 +155,15 @@ const drawSlotShapePath = (
         return;
     }
 
-    // Star (5-point)
-    const outerRadius = radius;
-    const innerRadius = radius * 0.45;
-    const startAngle = -Math.PI / 2;
-
-    for (let i = 0; i < 10; i++) {
-        const isOuter = i % 2 === 0;
-        const currentRadius = isOuter ? outerRadius : innerRadius;
-        const angle = startAngle + (i * Math.PI) / 5;
-        const px = x + Math.cos(angle) * currentRadius;
-        const py = y + Math.sin(angle) * currentRadius;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+    if (shapeIndex === 1) {
+        // Circle
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        return;
     }
-    ctx.closePath();
+
+    // Square
+    const size = radius * 2;
+    ctx.rect(x - radius, y - radius, size, size);
 };
 
 export const drawTeamNumbersAndSpots = (
@@ -202,12 +192,56 @@ export const drawTeamNumbersAndSpots = (
         const spots = getTeamSpots(teamNumber, stageId);
         const slotColor = getSlotColor(slotIndex);
 
+        const drawSpotPath = (spot: TeamSpotPoint, dashed = false) => {
+            if (!Array.isArray(spot.pathPoints) || spot.pathPoints.length < 2) return;
+
+            const mappedPoints = spot.pathPoints.map((pathPoint) => transformSpotForSlot(pathPoint, slotIndex));
+            if (mappedPoints.length < 2) return;
+
+            ctx.save();
+            if (dashed) {
+                ctx.setLineDash([8, 6]);
+            }
+
+            ctx.beginPath();
+            const start = mappedPoints[0];
+            if (!start) {
+                ctx.restore();
+                return;
+            }
+            ctx.moveTo(start.x * width, start.y * height);
+
+            for (let index = 1; index < mappedPoints.length; index++) {
+                const point = mappedPoints[index];
+                if (!point) continue;
+                ctx.lineTo(point.x * width, point.y * height);
+            }
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.lineWidth = 4.5;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(start.x * width, start.y * height);
+            for (let index = 1; index < mappedPoints.length; index++) {
+                const point = mappedPoints[index];
+                if (!point) continue;
+                ctx.lineTo(point.x * width, point.y * height);
+            }
+            ctx.strokeStyle = slotColor;
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            ctx.restore();
+        };
+
         ctx.save();
         ctx.globalAlpha = 0.55;
 
         if (visibility.showShooting) {
             ctx.fillStyle = slotColor;
             spots.shooting.forEach((spot) => {
+                drawSpotPath(spot, false);
                 const mappedSpot = transformSpotForSlot(spot, slotIndex);
                 const x = mappedSpot.x * width;
                 const y = mappedSpot.y * height;
@@ -222,6 +256,7 @@ export const drawTeamNumbersAndSpots = (
         if (visibility.showPassing) {
             ctx.strokeStyle = slotColor;
             spots.passing.forEach((spot) => {
+                drawSpotPath(spot, true);
                 const mappedSpot = transformSpotForSlot(spot, slotIndex);
                 const x = mappedSpot.x * width;
                 const y = mappedSpot.y * height;
@@ -237,6 +272,396 @@ export const drawTeamNumbersAndSpots = (
 
         ctx.restore();
     });
+};
+
+export const drawSelectedAutoRoutines = (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    selectedTeams: (number | null)[],
+    stageId: StrategyStageId,
+    selectedAutoRoutinesBySlot: (StrategyAutoRoutine | null)[] = [],
+    isolatedAutoSlot: number | null = null,
+) => {
+    if (stageId !== 'autonomous') return;
+
+    const getActionColor = (actionType?: string) => {
+        switch (actionType) {
+            case 'score':
+                return '#22c55e';
+            case 'pass':
+                return '#9333ea';
+            case 'collect':
+                return '#eab308';
+            default:
+                return '#06b6d4';
+        }
+    };
+
+    const getAllianceConnectorColor = (slotIndex: number) => (slotIndex >= 3 ? '#3b82f6' : '#ef4444');
+
+    const getSlotStampConfig = (slotIndex: number) => {
+        const shapeIndex = getSlotShapeIndex(slotIndex);
+
+        if (shapeIndex === 0) {
+            return { radius: 3.8, spacing: 16 };
+        }
+
+        if (shapeIndex === 1) {
+            return { radius: 2.4, spacing: 11 };
+        }
+
+        return { radius: 2.9, spacing: 15 };
+    };
+
+    const drawShapeStamp = (
+        x: number,
+        y: number,
+        slotIndex: number,
+        color: string,
+        angleRadians: number,
+        radius: number,
+    ) => {
+        const shapeIndex = getSlotShapeIndex(slotIndex);
+
+        ctx.save();
+        ctx.translate(x, y);
+        if (shapeIndex !== 0) {
+            ctx.rotate(angleRadians + Math.PI / 2);
+        }
+
+        drawSlotShapePath(ctx, 0, 0, radius, slotIndex);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.lineWidth = 1.25;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.stroke();
+        ctx.restore();
+    };
+
+    const drawShapeStampedPolyline = (
+        points: Array<{ x: number; y: number }>,
+        color: string,
+        slotIndex: number,
+    ) => {
+        if (points.length < 2) return;
+
+        const { radius, spacing } = getSlotStampConfig(slotIndex);
+
+        // Keep a subtle continuous guide so shape-stamped routes remain readable at a distance.
+        ctx.beginPath();
+        ctx.moveTo(points[0]!.x, points[0]!.y);
+        for (let index = 1; index < points.length; index++) {
+            const point = points[index];
+            if (!point) continue;
+            ctx.lineTo(point.x, point.y);
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.8;
+        ctx.globalAlpha *= 0.55;
+        ctx.stroke();
+        ctx.globalAlpha /= 0.55;
+
+        let carryDistance = spacing * 0.5;
+
+        for (let index = 1; index < points.length; index++) {
+            const previous = points[index - 1];
+            const current = points[index];
+            if (!previous || !current) continue;
+
+            const dx = current.x - previous.x;
+            const dy = current.y - previous.y;
+            const segmentLength = Math.hypot(dx, dy);
+            if (segmentLength < 0.001) continue;
+
+            const angle = Math.atan2(dy, dx);
+            let distanceAlong = carryDistance;
+
+            while (distanceAlong <= segmentLength) {
+                const t = distanceAlong / segmentLength;
+                const stampX = previous.x + dx * t;
+                const stampY = previous.y + dy * t;
+                drawShapeStamp(stampX, stampY, slotIndex, color, angle, radius);
+                distanceAlong += spacing;
+            }
+
+            carryDistance = distanceAlong - segmentLength;
+        }
+    };
+
+    const mapPointForSlot = (point: TeamSpotPoint, slotIndex: number) => {
+        const mappedSpot = transformSpotForSlot(point, slotIndex);
+        return {
+            x: mappedSpot.x * width,
+            y: mappedSpot.y * height,
+        };
+    };
+
+    const buildRoutineSegments = (routine: StrategyAutoRoutine, slotIndex: number) => {
+        const segments: Array<{ points: Array<{ x: number; y: number }>; type?: string; kind: 'connector' | 'path' | 'fallback' }> = [];
+        let previousPoint: { x: number; y: number } | null = null;
+
+        routine.actions.forEach((waypoint) => {
+            const currentPoint = mapPointForSlot(waypoint.position, slotIndex);
+
+            const originalPath = Array.isArray(waypoint.pathPoints) && waypoint.pathPoints.length >= 2
+                ? waypoint.pathPoints.map((point) => mapPointForSlot(point, slotIndex))
+                : null;
+
+            if (originalPath && originalPath.length >= 2) {
+                if (previousPoint) {
+                    const pathStart = originalPath[0];
+                    if (pathStart) {
+                        segments.push({
+                            points: [previousPoint, pathStart],
+                            type: waypoint.type,
+                            kind: 'connector',
+                        });
+                    }
+                }
+
+                segments.push({ points: originalPath, type: waypoint.type, kind: 'path' });
+                previousPoint = originalPath[originalPath.length - 1] ?? currentPoint;
+            } else if (previousPoint) {
+                segments.push({ points: [previousPoint, currentPoint], type: waypoint.type, kind: 'fallback' });
+                previousPoint = currentPoint;
+            } else {
+                previousPoint = currentPoint;
+            }
+        });
+
+        return segments;
+    };
+
+    selectedAutoRoutinesBySlot.forEach((routine, slotIndex) => {
+        const teamNumber = selectedTeams[slotIndex];
+        if (!teamNumber || !routine) return;
+        if (routine.teamNumber !== teamNumber) return;
+        if (!Array.isArray(routine.actions) || routine.actions.length === 0) return;
+
+        const isIsolatedOut = isolatedAutoSlot !== null && isolatedAutoSlot !== slotIndex;
+        const alpha = isIsolatedOut ? 0.2 : 0.95;
+        const connectorColor = getAllianceConnectorColor(slotIndex);
+
+        const pathPoints = routine.actions.map((waypoint) => ({
+            ...mapPointForSlot(waypoint.position, slotIndex),
+            type: waypoint.type,
+        }));
+        const segments = buildRoutineSegments(routine, slotIndex);
+
+        if (pathPoints.length === 0) return;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        segments.forEach((segment) => {
+            if (!segment.points.length) return;
+            const segmentColor = segment.kind === 'connector'
+                ? connectorColor
+                : (segment.kind === 'path' ? getActionColor(segment.type) : connectorColor);
+
+            drawShapeStampedPolyline(segment.points, segmentColor, slotIndex);
+        });
+
+        pathPoints.forEach((point, pointIndex) => {
+            const pointColor = getActionColor(point.type);
+
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+            ctx.fillStyle = pointColor;
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold 9px Arial';
+            ctx.fillText(`${pointIndex + 1}`, point.x, point.y);
+        });
+
+        const startPoint = pathPoints[0];
+        if (startPoint) {
+            const label = `${teamNumber}`;
+            ctx.font = 'bold 11px Arial';
+            const metrics = ctx.measureText(label);
+            const widthPadding = 12;
+            const badgeWidth = metrics.width + widthPadding;
+            const badgeHeight = 20;
+            const badgeX = startPoint.x + 10;
+            const badgeY = startPoint.y - 26;
+
+            ctx.beginPath();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+            ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 8);
+            ctx.fill();
+
+            ctx.strokeStyle = connectorColor;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label, badgeX + (widthPadding / 2), badgeY + (badgeHeight / 2));
+        }
+
+        ctx.restore();
+    });
+};
+
+const distanceToSegment = (
+    pointX: number,
+    pointY: number,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+): number => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+
+    if (dx === 0 && dy === 0) {
+        const px = pointX - x1;
+        const py = pointY - y1;
+        return Math.hypot(px, py);
+    }
+
+    const t = Math.max(0, Math.min(1, ((pointX - x1) * dx + (pointY - y1) * dy) / (dx * dx + dy * dy)));
+    const projX = x1 + t * dx;
+    const projY = y1 + t * dy;
+    return Math.hypot(pointX - projX, pointY - projY);
+};
+
+const isPointInRect = (
+    pointX: number,
+    pointY: number,
+    rectX: number,
+    rectY: number,
+    rectWidth: number,
+    rectHeight: number,
+) => {
+    return (
+        pointX >= rectX
+        && pointX <= rectX + rectWidth
+        && pointY >= rectY
+        && pointY <= rectY + rectHeight
+    );
+};
+
+export const getAutoRoutineSlotAtPoint = (
+    pointX: number,
+    pointY: number,
+    width: number,
+    height: number,
+    selectedTeams: (number | null)[],
+    stageId: StrategyStageId,
+    selectedAutoRoutinesBySlot: (StrategyAutoRoutine | null)[] = [],
+): number | null => {
+    if (stageId !== 'autonomous') return null;
+
+    const pathHitThreshold = 14;
+    const pointHitThreshold = 16;
+
+    const mapPointForSlot = (point: TeamSpotPoint, slotIndex: number) => {
+        const mappedSpot = transformSpotForSlot(point, slotIndex);
+        return {
+            x: mappedSpot.x * width,
+            y: mappedSpot.y * height,
+        };
+    };
+
+    const buildRoutineSegments = (routine: StrategyAutoRoutine, slotIndex: number) => {
+        const segments: Array<Array<{ x: number; y: number }>> = [];
+        let previousPoint: { x: number; y: number } | null = null;
+
+        routine.actions.forEach((waypoint) => {
+            const currentPoint = mapPointForSlot(waypoint.position, slotIndex);
+            const originalPath = Array.isArray(waypoint.pathPoints) && waypoint.pathPoints.length >= 2
+                ? waypoint.pathPoints.map((point) => mapPointForSlot(point, slotIndex))
+                : null;
+
+            if (originalPath && originalPath.length >= 2) {
+                if (previousPoint) {
+                    const pathStart = originalPath[0];
+                    if (pathStart) {
+                        segments.push([previousPoint, pathStart]);
+                    }
+                }
+                segments.push(originalPath);
+                previousPoint = originalPath[originalPath.length - 1] ?? currentPoint;
+            } else if (previousPoint) {
+                segments.push([previousPoint, currentPoint]);
+                previousPoint = currentPoint;
+            } else {
+                previousPoint = currentPoint;
+            }
+        });
+
+        return segments;
+    };
+
+    for (let slotIndex = 0; slotIndex < selectedAutoRoutinesBySlot.length; slotIndex++) {
+        const routine = selectedAutoRoutinesBySlot[slotIndex];
+        const teamNumber = selectedTeams[slotIndex];
+        if (!routine || !teamNumber) continue;
+        if (routine.teamNumber !== teamNumber) continue;
+        if (!Array.isArray(routine.actions) || routine.actions.length === 0) continue;
+
+        const pathPoints = routine.actions.map((waypoint) => {
+            const mappedSpot = transformSpotForSlot(waypoint.position, slotIndex);
+            return {
+                x: mappedSpot.x * width,
+                y: mappedSpot.y * height,
+            };
+        });
+
+        const startPoint = pathPoints[0];
+        if (startPoint) {
+            const label = `${teamNumber}`;
+            const widthPadding = 12;
+            const badgeHeight = 20;
+            const badgeX = startPoint.x + 10;
+            const badgeY = startPoint.y - 26;
+
+            // Keep hit-test math aligned with drawSelectedAutoRoutines label placement.
+            // Approximate width is sufficient for click target since we only render team numbers.
+            const approxCharWidth = 7;
+            const badgeWidth = (label.length * approxCharWidth) + widthPadding;
+
+            if (isPointInRect(pointX, pointY, badgeX, badgeY, badgeWidth, badgeHeight)) {
+                return slotIndex;
+            }
+        }
+
+        for (let index = 0; index < pathPoints.length; index++) {
+            const point = pathPoints[index];
+            if (!point) continue;
+
+            if (Math.hypot(pointX - point.x, pointY - point.y) <= pointHitThreshold) {
+                return slotIndex;
+            }
+        }
+
+        const segments = buildRoutineSegments(routine, slotIndex);
+        for (const segment of segments) {
+            for (let index = 1; index < segment.length; index++) {
+                const previous = segment[index - 1];
+                const current = segment[index];
+                if (!previous || !current) continue;
+
+                const distance = distanceToSegment(pointX, pointY, previous.x, previous.y, current.x, current.y);
+                if (distance <= pathHitThreshold) {
+                    return slotIndex;
+                }
+            }
+        }
+    }
+
+    return null;
 };
 
 /**

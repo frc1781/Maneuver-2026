@@ -8,7 +8,7 @@
 import { Card, CardContent } from "@/core/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/core/components/animate-ui/radix/tabs";
 import FieldCanvas from "./FieldCanvas";
-import type { StrategyStageId, TeamStageSpots } from "@/core/hooks/useMatchStrategy";
+import type { StrategyAutoRoutine, StrategyStageId, TeamStageSpots } from "@/core/hooks/useMatchStrategy";
 
 interface TeamSlotSpotVisibility {
     showShooting: boolean;
@@ -21,6 +21,7 @@ interface FieldStrategyProps {
     selectedTeams?: (number | null)[];  // Optional: team numbers to display on canvas
     teamSlotSpotVisibility?: TeamSlotSpotVisibility[];
     getTeamSpots?: (teamNumber: number | null, stageId: StrategyStageId) => TeamStageSpots;
+    selectedAutoRoutinesBySlot?: (StrategyAutoRoutine | null)[];
     onTabChange: (value: string) => void;
 }
 
@@ -30,11 +31,12 @@ export const FieldStrategy = ({
     selectedTeams = [],
     teamSlotSpotVisibility = [],
     getTeamSpots,
+    selectedAutoRoutinesBySlot = [],
     onTabChange
 }: FieldStrategyProps) => {
     return (
         <Card className="w-full py-0">
-            <CardContent className="p-4">
+            <CardContent className="p-4 h-[500px]">
                 <Tabs value={activeTab} onValueChange={onTabChange} className="w-full h-full flex flex-col" enableSwipe={true}>
                     <TabsList className="grid w-full grid-cols-3 mb-4 shrink-0">
                         <TabsTrigger value="autonomous">Autonomous</TabsTrigger>
@@ -51,6 +53,7 @@ export const FieldStrategy = ({
                                 selectedTeams={selectedTeams}
                                 teamSlotSpotVisibility={teamSlotSpotVisibility}
                                 getTeamSpots={getTeamSpots}
+                                selectedAutoRoutinesBySlot={selectedAutoRoutinesBySlot}
                                 onStageChange={onTabChange}
                             />
                         </TabsContent>
@@ -63,6 +66,7 @@ export const FieldStrategy = ({
                                 selectedTeams={selectedTeams}
                                 teamSlotSpotVisibility={teamSlotSpotVisibility}
                                 getTeamSpots={getTeamSpots}
+                                selectedAutoRoutinesBySlot={selectedAutoRoutinesBySlot}
                                 onStageChange={onTabChange}
                             />
                         </TabsContent>
@@ -75,6 +79,7 @@ export const FieldStrategy = ({
                                 selectedTeams={selectedTeams}
                                 teamSlotSpotVisibility={teamSlotSpotVisibility}
                                 getTeamSpots={getTeamSpots}
+                                selectedAutoRoutinesBySlot={selectedAutoRoutinesBySlot}
                                 onStageChange={onTabChange}
                             />
                         </TabsContent>

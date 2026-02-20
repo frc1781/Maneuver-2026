@@ -16,11 +16,12 @@ import { useFullscreen } from "@/core/hooks/useFullscreen";
 import { useIsMobile } from "@/core/hooks/use-mobile";
 import { useCanvasDrawing } from "@/core/hooks/useCanvasDrawing";
 import { useCanvasSetup } from "@/core/hooks/useCanvasSetup";
+import { drawSelectedAutoRoutines, drawTeamNumbersAndSpots, getAutoRoutineSlotAtPoint } from "@/core/lib/canvasUtils";
 import { FieldCanvasHeader } from "./FieldCanvasHeader";
 import { MobileStageControls } from "./MobileStageControls";
 import { DrawingControls } from "./DrawingControls";
 import { FloatingControls } from "./FloatingControls";
-import type { StrategyStageId, TeamStageSpots } from "@/core/hooks/useMatchStrategy";
+import type { StrategyAutoRoutine, StrategyStageId, TeamStageSpots } from "@/core/hooks/useMatchStrategy";
 
 interface TeamSlotSpotVisibility {
     showShooting: boolean;
@@ -34,6 +35,7 @@ interface FieldCanvasProps {
     selectedTeams?: (number | null)[];
     teamSlotSpotVisibility?: TeamSlotSpotVisibility[];
     getTeamSpots?: (teamNumber: number | null, stageId: StrategyStageId) => TeamStageSpots;
+    selectedAutoRoutinesBySlot?: (StrategyAutoRoutine | null)[];
 }
 
 const FieldCanvas = ({
@@ -43,6 +45,7 @@ const FieldCanvas = ({
     selectedTeams = [],
     teamSlotSpotVisibility = [],
     getTeamSpots,
+    selectedAutoRoutinesBySlot = [],
 }: FieldCanvasProps) => {
     // Canvas refs for the 3-layer architecture
     const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -58,6 +61,7 @@ const FieldCanvas = ({
     const { isFullscreen, setIsFullscreen } = useFullscreen();
     const [currentStageId, setCurrentStageId] = useState(stageId);
     const [hideControls, setHideControls] = useState(false);
+    const [isolatedAutoSlot, setIsolatedAutoSlot] = useState<number | null>(null);
     const isMobile = useIsMobile();
 
     // Canvas dimensions (shared across all layers) - starts at 0 until image loads
@@ -80,6 +84,21 @@ const FieldCanvas = ({
         }
     }, [stageId, isFullscreen]);
 
+    useEffect(() => {
+        if (currentStageId !== 'autonomous') {
+            setIsolatedAutoSlot(null);
+        }
+    }, [currentStageId]);
+
+    useEffect(() => {
+        if (isolatedAutoSlot === null) return;
+        const teamNumber = selectedTeams[isolatedAutoSlot];
+        const routine = selectedAutoRoutinesBySlot[isolatedAutoSlot];
+        if (!teamNumber || !routine) {
+            setIsolatedAutoSlot(null);
+        }
+    }, [isolatedAutoSlot, selectedTeams, selectedAutoRoutinesBySlot]);
+
     // Reset canvas dimensions when transitioning between fullscreen modes
     // This prevents overflow when exiting fullscreen before setupCanvas recalculates
     useEffect(() => {
@@ -88,9 +107,18 @@ const FieldCanvas = ({
 
     // Canvas ready state for undo history
     const [canvasReady, setCanvasReady] = useState(false);
+    const [isStageCanvasReady, setIsStageCanvasReady] = useState(false);
+    const readyStageIdRef = useRef<string | null>(null);
     const handleCanvasReady = useCallback(() => {
         setCanvasReady(true);
-    }, []);
+        readyStageIdRef.current = currentStageId;
+        setIsStageCanvasReady(true);
+    }, [currentStageId]);
+
+    useEffect(() => {
+        readyStageIdRef.current = null;
+        setIsStageCanvasReady(false);
+    }, [currentStageId, isFullscreen]);
 
     // Canvas setup hook (now handles background + overlay layers)
     const { clearCanvas } = useCanvasSetup({
@@ -107,16 +135,38 @@ const FieldCanvas = ({
         selectedTeams,
         teamSlotSpotVisibility,
         getTeamSpots,
+        selectedAutoRoutinesBySlot,
+        isolatedAutoSlot,
         onCanvasReady: handleCanvasReady,
         onDimensionsChange: setCanvasDimensions
     });
 
+    const handleCanvasTap = useCallback((point: { x: number; y: number }) => {
+        if (currentStageId !== 'autonomous') return;
+
+        const hitSlot = getAutoRoutineSlotAtPoint(
+            point.x,
+            point.y,
+            canvasDimensions.width,
+            canvasDimensions.height,
+            selectedTeams,
+            currentStageId as StrategyStageId,
+            selectedAutoRoutinesBySlot,
+        );
+
+        if (hitSlot === null) {
+            setIsolatedAutoSlot(null);
+            return;
+        }
+
+        setIsolatedAutoSlot((prev) => (prev === hitSlot ? null : hitSlot));
+    }, [currentStageId, canvasDimensions.width, canvasDimensions.height, selectedTeams, selectedAutoRoutinesBySlot]);
+
     // Save canvas function - composites all layers
     const saveCanvas = useCallback((showAlert = true) => {
         const bgCanvas = backgroundCanvasRef.current;
-        const overlayCanvas = overlayCanvasRef.current;
         const drawingCanvas = drawingCanvasRef.current;
-        if (!bgCanvas || !overlayCanvas || !drawingCanvas) return;
+        if (!bgCanvas || !drawingCanvas) return;
 
         // Create composite canvas
         const compositeCanvas = document.createElement('canvas');
@@ -127,7 +177,24 @@ const FieldCanvas = ({
 
         // Draw all layers in order
         ctx.drawImage(bgCanvas, 0, 0);
-        ctx.drawImage(overlayCanvas, 0, 0);
+        drawTeamNumbersAndSpots(
+            ctx,
+            canvasDimensions.width,
+            canvasDimensions.height,
+            selectedTeams,
+            currentStageId as StrategyStageId,
+            teamSlotSpotVisibility,
+            getTeamSpots,
+        );
+        drawSelectedAutoRoutines(
+            ctx,
+            canvasDimensions.width,
+            canvasDimensions.height,
+            selectedTeams,
+            currentStageId as StrategyStageId,
+            selectedAutoRoutinesBySlot,
+            isolatedAutoSlot,
+        );
         ctx.drawImage(drawingCanvas, 0, 0);
 
         const dataURL = compositeCanvas.toDataURL('image/png');
@@ -139,9 +206,36 @@ const FieldCanvas = ({
             link.click();
         }
 
-        // Auto-save drawing layer only to localStorage
-        localStorage.setItem(`fieldStrategy_${currentStageId}`, drawingCanvas.toDataURL('image/png'));
-    }, [currentStageId, canvasDimensions]);
+        // Auto-save drawing layer to localStorage, but never overwrite an existing
+        // non-empty stage drawing with an empty canvas during stage transition races.
+        const drawingCtx = drawingCanvas.getContext('2d');
+        const drawingKey = `fieldStrategy_${currentStageId}`;
+        const existingDrawing = localStorage.getItem(drawingKey);
+        let hasVisibleDrawing = false;
+
+        if (drawingCtx && drawingCanvas.width > 0 && drawingCanvas.height > 0) {
+            const imageData = drawingCtx.getImageData(0, 0, drawingCanvas.width, drawingCanvas.height);
+            const data = imageData.data;
+            for (let index = 3; index < data.length; index += 4) {
+                if ((data[index] ?? 0) > 0) {
+                    hasVisibleDrawing = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasVisibleDrawing || !existingDrawing) {
+            localStorage.setItem(drawingKey, drawingCanvas.toDataURL('image/png'));
+        }
+    }, [
+        currentStageId,
+        canvasDimensions,
+        selectedTeams,
+        teamSlotSpotVisibility,
+        getTeamSpots,
+        selectedAutoRoutinesBySlot,
+        isolatedAutoSlot,
+    ]);
 
     // Canvas drawing hook - only operates on drawing layer
     const { canvasStyle, canvasEventHandlers, undo, canUndo, initializeHistory, saveToHistory } = useCanvasDrawing({
@@ -150,8 +244,27 @@ const FieldCanvas = ({
         brushColor,
         isErasing,
         onSave: () => saveCanvas(false),
+        onTap: handleCanvasTap,
         selectedTeams
     });
+
+    // Persist strategy state when overlay content changes (auto routines, teams, spot toggles)
+    // so an auto-only canvas is treated as saved even without freehand drawing.
+    useEffect(() => {
+        if (!isStageCanvasReady) return;
+        if (readyStageIdRef.current !== currentStageId) return;
+        if (canvasDimensions.width <= 0 || canvasDimensions.height <= 0) return;
+        saveCanvas(false);
+    }, [
+        isStageCanvasReady,
+        canvasDimensions.width,
+        canvasDimensions.height,
+        currentStageId,
+        saveCanvas,
+        selectedTeams,
+        teamSlotSpotVisibility,
+        selectedAutoRoutinesBySlot,
+    ]);
 
     // Initialize undo history once when component mounts
     const historyInitializedRef = useRef(false);
@@ -204,6 +317,8 @@ const FieldCanvas = ({
         if (!newStage) return;
         const newStageId = newStage.id;
 
+        readyStageIdRef.current = null;
+        setIsStageCanvasReady(false);
         saveCanvas(false);
         setCurrentStageId(newStageId);
 
@@ -352,20 +467,6 @@ const FieldCanvas = ({
                     </div>
                 </div>
 
-                <div className="shrink-0 p-2 md:p-4 border-t bg-background text-center text-xs md:text-sm text-muted-foreground">
-                    <div className="flex flex-wrap justify-center gap-4">
-                        {!isMobile && (
-                            <>
-                                <span>Press ESC to exit fullscreen</span>
-                                <span>Use ← → arrows to switch stages</span>
-                                <span>Ctrl+Z to undo</span>
-                            </>
-                        )}
-                        {isMobile && (
-                            <span>Tap Exit Fullscreen to return • Use Previous/Next to switch stages</span>
-                        )}
-                    </div>
-                </div>
             </div>
         );
     }
@@ -412,9 +513,9 @@ const FieldCanvas = ({
             <div className="mt-2 px-2 py-1 text-xs text-muted-foreground border rounded-md bg-background/60">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                     <span className="font-medium text-foreground">Key:</span>
-                    <span>Slot 1: ● circle</span>
-                    <span>Slot 2: ▲ triangle</span>
-                    <span>Slot 3: ★ star</span>
+                    <span>Slot 1: ▲ triangle</span>
+                    <span>Slot 2: ● circle</span>
+                    <span>Slot 3: ■ square</span>
                     <span>Filled = shooting</span>
                     <span>Outline = passing</span>
                 </div>
