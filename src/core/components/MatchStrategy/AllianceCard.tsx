@@ -13,7 +13,7 @@ import { TeamStatsDetail } from "./TeamStatsDetail";
 import { TeamStatsHeaders } from "./TeamStatsHeaders";
 import { AutoRoutineDialog } from "./AutoRoutineDialog";
 import type { TeamStats } from "@/core/types/team-stats";
-import type { AutoRoutineSelection, AutoRoutineSource, StrategyAutoRoutine } from "@/core/hooks/useMatchStrategy";
+import type { AutoRoutineSelection, AutoRoutineSource, AutoRoutineWaypoint, StartPositionLabel, StrategyAutoRoutine } from "@/core/hooks/useMatchStrategy";
 
 interface TeamSlotSpotVisibility {
     showShooting: boolean;
@@ -33,6 +33,9 @@ interface AllianceCardProps {
     getSelectedAutoRoutineForSlot: (slotIndex: number) => StrategyAutoRoutine | null;
     getSelectedAutoRoutineSelectionForSlot: (slotIndex: number) => AutoRoutineSelection | null;
     onSelectAutoRoutineForSlot: (slotIndex: number, selection: AutoRoutineSelection | null) => void;
+    onAddReportedAutoForTeam: (teamNumber: number, startLabel: StartPositionLabel, name: string, actions: AutoRoutineWaypoint[]) => Promise<AutoRoutineSelection | null>;
+    onUpdateReportedAutoForTeam: (teamNumber: number, routineId: string, name: string, actions: AutoRoutineWaypoint[]) => Promise<boolean>;
+    onDeleteReportedAutoForTeam: (teamNumber: number, routineId: string) => Promise<boolean>;
     onTouchStart?: (e: React.TouchEvent) => void;
     onTouchEnd?: (e: React.TouchEvent) => void;
 }
@@ -50,6 +53,9 @@ export const AllianceCard = ({
     getSelectedAutoRoutineForSlot,
     getSelectedAutoRoutineSelectionForSlot,
     onSelectAutoRoutineForSlot,
+    onAddReportedAutoForTeam,
+    onUpdateReportedAutoForTeam,
+    onDeleteReportedAutoForTeam,
     onTouchStart,
     onTouchEnd
 }: AllianceCardProps) => {
@@ -191,6 +197,18 @@ export const AllianceCard = ({
                 onSelectRoutine={(selection) => {
                     if (activeRoutineSlot === null) return;
                     onSelectAutoRoutineForSlot(activeRoutineSlot, selection);
+                }}
+                onAddReportedRoutine={async (startLabel, name, actions) => {
+                    if (!activeRoutineTeam) return null;
+                    return onAddReportedAutoForTeam(activeRoutineTeam, startLabel, name, actions);
+                }}
+                onUpdateReportedRoutine={async (routineId, name, actions) => {
+                    if (!activeRoutineTeam) return false;
+                    return onUpdateReportedAutoForTeam(activeRoutineTeam, routineId, name, actions);
+                }}
+                onDeleteReportedRoutine={async (routineId) => {
+                    if (!activeRoutineTeam) return false;
+                    return onDeleteReportedAutoForTeam(activeRoutineTeam, routineId);
                 }}
             />
         </div>

@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { loadScoutingData } from "@/core/lib/scoutingDataUtils";
-import { loadAllPitScoutingEntries, loadScoutingEntriesByMatch } from "@/core/db/database";
+import { loadAllPitScoutingEntries, loadPitScoutingByTeam, loadScoutingEntriesByMatch, savePitScoutingEntry } from "@/core/db/database";
 import { useAllTeamStats } from "@/core/hooks/useAllTeamStats";
 import type { Alliance } from "../lib/allianceTypes";
 import type { TeamStats } from "@/core/types/team-stats";
@@ -21,7 +21,7 @@ export type StrategyStageId = 'autonomous' | 'teleop' | 'endgame';
 export type AutoRoutineSource = 'scouted' | 'reported';
 
 const START_POSITION_LABELS = ['Left Trench', 'Left Bump', 'Hub', 'Right Bump', 'Right Trench'] as const;
-type StartPositionLabel = (typeof START_POSITION_LABELS)[number];
+export type StartPositionLabel = (typeof START_POSITION_LABELS)[number];
 type StartPositionIndex = 0 | 1 | 2 | 3 | 4;
 
 const START_LABEL_TO_INDEX: Record<StartPositionLabel, StartPositionIndex> = {
@@ -55,6 +55,16 @@ interface TeamAutoRoutines {
     scouted: StrategyAutoRoutine[];
     reported: StrategyAutoRoutine[];
 }
+
+interface ReportedAutoRecord {
+    id: string;
+    name: string;
+    actions: AutoRoutineWaypoint[];
+    createdAt: number;
+    updatedAt: number;
+}
+
+type ReportedAutosByStart = Record<StartPositionLabel, ReportedAutoRecord[]>;
 
 export interface AutoRoutineSelection {
     source: AutoRoutineSource;
@@ -206,6 +216,173 @@ function getMostRecentPitEntriesByTeam(entries: PitScoutingEntryBase[]): Record<
     }, {});
 }
 
+function createEmptyReportedAutos(): ReportedAutosByStart {
+    return {
+        'Left Trench': [],
+        'Left Bump': [],
+        Hub: [],
+        'Right Bump': [],
+        'Right Trench': [],
+    };
+}
+
+function coerceReportedAutosByStart(value: unknown): ReportedAutosByStart {
+    const empty = createEmptyReportedAutos();
+    if (!isRecord(value)) return empty;
+
+    START_POSITION_LABELS.forEach((startLabel) => {
+        const startAutosRaw = value[startLabel];
+        if (!Array.isArray(startAutosRaw)) return;
+
+        empty[startLabel] = startAutosRaw
+            .filter((auto): auto is Record<string, unknown> => isRecord(auto))
+            .map((auto, index) => {
+                const now = Date.now();
+                const id = typeof auto.id === 'string' && auto.id.trim()
+                    ? auto.id
+                    : `${startLabel}-${index}-${now}`;
+                const name = typeof auto.name === 'string' && auto.name.trim()
+                    ? auto.name.trim()
+                    : `${startLabel} Auto ${index + 1}`;
+                const actions = extractRoutineActionsFromPath(auto.actions);
+
+                return {
+                    id,
+                    name,
+                    actions,
+                    createdAt: typeof auto.createdAt === 'number' ? auto.createdAt : now,
+                    updatedAt: typeof auto.updatedAt === 'number' ? auto.updatedAt : now,
+                };
+            })
+            .filter((auto) => auto.actions.length > 0);
+    });
+
+    return empty;
+}
+
+function buildReportedRoutinesFromReportedAutos(teamNumber: number, reportedAutosByStart: ReportedAutosByStart): StrategyAutoRoutine[] {
+    const routines: StrategyAutoRoutine[] = [];
+
+    START_POSITION_LABELS.forEach((startLabel) => {
+        const autos = reportedAutosByStart[startLabel] ?? [];
+        autos.forEach((auto) => {
+            routines.push({
+                id: `reported-${auto.id}`,
+                teamNumber,
+                source: 'reported',
+                label: auto.name,
+                startPosition: START_LABEL_TO_INDEX[startLabel],
+                startLabel,
+                actions: auto.actions,
+            });
+        });
+    });
+
+    routines.sort((a, b) => a.label.localeCompare(b.label));
+    return routines;
+}
+
+function stripReportedPrefix(routineId: string): string {
+    return routineId.startsWith('reported-') ? routineId.slice('reported-'.length) : routineId;
+}
+
+function createDefaultPitEntryForTeam(teamNumber: number): PitScoutingEntryBase {
+    const now = Date.now();
+    const eventKey = (localStorage.getItem('eventKey') || 'unknown-event').trim() || 'unknown-event';
+    const scoutName = (localStorage.getItem('scoutName') || 'Match Strategy').trim() || 'Match Strategy';
+    const id = `pit-${teamNumber}-${eventKey}-${now}-${Math.random().toString(36).slice(2, 8)}`;
+
+    return {
+        id,
+        teamNumber,
+        eventKey,
+        scoutName,
+        timestamp: now,
+        gameData: {
+            reportedAutosByStart: createEmptyReportedAutos(),
+        },
+    };
+}
+
+function parseTeamNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+        return Math.trunc(value);
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        const normalized = trimmed.toLowerCase().startsWith('frc') ? trimmed.slice(3) : trimmed;
+        const parsed = Number.parseInt(normalized, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+            return parsed;
+        }
+    }
+
+    return null;
+}
+
+function getMatchScheduleTeamNumbersFromStorage(): number[] {
+    const raw = localStorage.getItem('matchData');
+    if (!raw) return [];
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+
+        const teamNumbers = new Set<number>();
+
+        parsed.forEach((match) => {
+            if (!isRecord(match)) return;
+
+            const redAlliance = Array.isArray(match.redAlliance) ? match.redAlliance : [];
+            const blueAlliance = Array.isArray(match.blueAlliance) ? match.blueAlliance : [];
+
+            [...redAlliance, ...blueAlliance].forEach((teamValue) => {
+                const teamNumber = parseTeamNumber(teamValue);
+                if (teamNumber) {
+                    teamNumbers.add(teamNumber);
+                }
+            });
+        });
+
+        return [...teamNumbers];
+    } catch {
+        return [];
+    }
+}
+
+function areNumberArraysEqual(a: number[], b: number[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let index = 0; index < a.length; index += 1) {
+        if (a[index] !== b[index]) return false;
+    }
+    return true;
+}
+
+function buildAvailableTeams(
+    scoutingEntries: Array<{ teamNumber?: number | null }>,
+    pitEntries: PitScoutingEntryBase[],
+    scheduleTeamNumbers: number[]
+): number[] {
+    const availableTeamSet = new Set<number>();
+
+    scoutingEntries.forEach((entry) => {
+        if (entry.teamNumber) {
+            availableTeamSet.add(entry.teamNumber);
+        }
+    });
+
+    pitEntries.forEach((entry) => {
+        if (entry.teamNumber) {
+            availableTeamSet.add(entry.teamNumber);
+        }
+    });
+
+    scheduleTeamNumbers.forEach((teamNumber) => availableTeamSet.add(teamNumber));
+
+    return [...availableTeamSet].sort((a, b) => a - b);
+}
+
 export const useMatchStrategy = () => {
     const [selectedTeams, setSelectedTeams] = useState<(number | null)[]>(Array(6).fill(null));
     const [availableTeams, setAvailableTeams] = useState<number[]>([]);
@@ -216,6 +393,7 @@ export const useMatchStrategy = () => {
     const [selectedRedAlliance, setSelectedRedAlliance] = useState<string>("");
     const [teamSpotsByTeam, setTeamSpotsByTeam] = useState<Record<number, TeamSpotsByStage>>({});
     const [teamAutoRoutinesByTeam, setTeamAutoRoutinesByTeam] = useState<Record<number, TeamAutoRoutines>>({});
+    const [latestPitEntryByTeam, setLatestPitEntryByTeam] = useState<Record<number, PitScoutingEntryBase>>({});
     const [selectedAutoRoutineBySlot, setSelectedAutoRoutineBySlot] = useState<(AutoRoutineSelection | null)[]>(Array(6).fill(null));
     const applySelectedTeams = useCallback((nextSelectedTeams: (number | null)[]) => {
         setSelectedTeams((prevSelectedTeams) => {
@@ -238,6 +416,22 @@ export const useMatchStrategy = () => {
             return nextSelectedTeams;
         });
     }, [teamAutoRoutinesByTeam]);
+
+    const refreshAvailableTeams = useCallback(async () => {
+        try {
+            const [scoutingEntries, pitEntries] = await Promise.all([
+                loadScoutingData(),
+                loadAllPitScoutingEntries(),
+            ]);
+
+            const scheduleTeamNumbers = getMatchScheduleTeamNumbersFromStorage();
+            const nextTeams = buildAvailableTeams(scoutingEntries, pitEntries, scheduleTeamNumbers);
+
+            setAvailableTeams((prevTeams) => (areNumberArraysEqual(prevTeams, nextTeams) ? prevTeams : nextTeams));
+        } catch (error) {
+            console.error('Error refreshing available teams:', error);
+        }
+    }, []);
 
 
     // Get all team stats using centralized hook
@@ -339,13 +533,9 @@ export const useMatchStrategy = () => {
             try {
                 const data = await loadScoutingData();
 
-                // Extract unique team numbers - use teamNumber field (correct field name)
-                const teams = [...new Set(
-                    data
-                        .map((entry) => entry.teamNumber)
-                        .filter(Boolean)
-                )] as number[];
-                teams.sort((a, b) => a - b);
+                const scheduleTeamNumbers = getMatchScheduleTeamNumbersFromStorage();
+                const pitEntries = await loadAllPitScoutingEntries();
+                const teams = buildAvailableTeams(data, pitEntries, scheduleTeamNumbers);
                 setAvailableTeams(teams);
 
                 const spotsByTeam: Record<number, TeamSpotsByStage> = {};
@@ -404,50 +594,19 @@ export const useMatchStrategy = () => {
                     }
                 });
 
-                const pitEntries = await loadAllPitScoutingEntries();
                 const latestPitByTeam = getMostRecentPitEntriesByTeam(pitEntries);
+                setLatestPitEntryByTeam(latestPitByTeam);
 
                 Object.entries(latestPitByTeam).forEach(([teamKey, pitEntry]) => {
                     const teamNumber = Number(teamKey);
                     if (!teamNumber || !isRecord(pitEntry.gameData)) return;
 
-                    const reportedRaw = pitEntry.gameData.reportedAutosByStart;
-                    if (!isRecord(reportedRaw)) return;
-
                     if (!routinesByTeam[teamNumber]) {
                         routinesByTeam[teamNumber] = { scouted: [], reported: [] };
                     }
-                    const teamRoutines = routinesByTeam[teamNumber];
-                    if (!teamRoutines) return;
 
-                    START_POSITION_LABELS.forEach((startLabel) => {
-                        const startAutosRaw = reportedRaw[startLabel];
-                        if (!Array.isArray(startAutosRaw)) return;
-
-                        startAutosRaw.forEach((auto, index) => {
-                            if (!isRecord(auto)) return;
-
-                            const actions = extractRoutineActionsFromPath(auto.actions);
-                            if (actions.length === 0) return;
-
-                            const autoId = typeof auto.id === 'string' && auto.id.trim()
-                                ? auto.id
-                                : `${pitEntry.id}-${startLabel}-${index}`;
-                            const name = typeof auto.name === 'string' && auto.name.trim()
-                                ? auto.name.trim()
-                                : `${startLabel} Auto ${index + 1}`;
-
-                            teamRoutines.reported.push({
-                                id: `reported-${autoId}`,
-                                teamNumber,
-                                source: 'reported',
-                                label: name,
-                                startPosition: START_LABEL_TO_INDEX[startLabel],
-                                startLabel,
-                                actions,
-                            });
-                        });
-                    });
+                    const reportedAutosByStart = coerceReportedAutosByStart(pitEntry.gameData.reportedAutosByStart);
+                    routinesByTeam[teamNumber].reported = buildReportedRoutinesFromReportedAutos(teamNumber, reportedAutosByStart);
                 });
 
                 Object.values(routinesByTeam).forEach((teamRoutines) => {
@@ -504,6 +663,35 @@ export const useMatchStrategy = () => {
 
         return () => clearTimeout(timeoutId);
     }, [matchNumber, lookupMatchTeams]);
+
+    useEffect(() => {
+        const handlePotentialDataChange = () => {
+            void refreshAvailableTeams();
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                void refreshAvailableTeams();
+            }
+        };
+
+        window.addEventListener('storage', handlePotentialDataChange);
+        window.addEventListener('focus', handlePotentialDataChange);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        const intervalId = window.setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                void refreshAvailableTeams();
+            }
+        }, 5000);
+
+        return () => {
+            window.removeEventListener('storage', handlePotentialDataChange);
+            window.removeEventListener('focus', handlePotentialDataChange);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.clearInterval(intervalId);
+        };
+    }, [refreshAvailableTeams]);
 
     const handleTeamChange = (index: number, teamNumber: number | null) => {
         const newSelectedTeams = [...selectedTeams];
@@ -566,6 +754,204 @@ export const useMatchStrategy = () => {
         return EMPTY_SPOTS;
     }, [teamSpotsByTeam]);
 
+    const addReportedAutoForTeam = useCallback(async (
+        teamNumber: number,
+        startLabel: StartPositionLabel,
+        name: string,
+        actions: AutoRoutineWaypoint[]
+    ): Promise<AutoRoutineSelection | null> => {
+        if (!teamNumber || actions.length === 0) return null;
+
+        let latestEntry = latestPitEntryByTeam[teamNumber];
+        if (!latestEntry) {
+            const allTeamPitEntries = await loadPitScoutingByTeam(teamNumber);
+            latestEntry = allTeamPitEntries.sort((a, b) => b.timestamp - a.timestamp)[0];
+        }
+        if (!latestEntry) {
+            latestEntry = createDefaultPitEntryForTeam(teamNumber);
+        }
+
+        const reportedAutosByStart = coerceReportedAutosByStart(isRecord(latestEntry.gameData) ? latestEntry.gameData.reportedAutosByStart : undefined);
+        const now = Date.now();
+        const rawId = `pit-auto-${startLabel}-${now}-${Math.random().toString(36).slice(2, 8)}`;
+
+        const nextStartAutos = [
+            ...(reportedAutosByStart[startLabel] ?? []),
+            {
+                id: rawId,
+                name: name.trim() || `${startLabel} Auto ${(reportedAutosByStart[startLabel] ?? []).length + 1}`,
+                actions,
+                createdAt: now,
+                updatedAt: now,
+            },
+        ];
+
+        const nextReportedAutosByStart: ReportedAutosByStart = {
+            ...reportedAutosByStart,
+            [startLabel]: nextStartAutos,
+        };
+
+        const updatedEntry: PitScoutingEntryBase = {
+            ...latestEntry,
+            timestamp: now,
+            gameData: {
+                ...(isRecord(latestEntry.gameData) ? latestEntry.gameData : {}),
+                reportedAutosByStart: nextReportedAutosByStart,
+            },
+        };
+
+        await savePitScoutingEntry(updatedEntry);
+
+        setLatestPitEntryByTeam((prev) => ({
+            ...prev,
+            [teamNumber]: updatedEntry,
+        }));
+
+        setTeamAutoRoutinesByTeam((prev) => {
+            const previousTeamRoutines = prev[teamNumber] ?? EMPTY_TEAM_AUTO_ROUTINES;
+            return {
+                ...prev,
+                [teamNumber]: {
+                    ...previousTeamRoutines,
+                    reported: buildReportedRoutinesFromReportedAutos(teamNumber, nextReportedAutosByStart),
+                },
+            };
+        });
+
+        return { source: 'reported', routineId: `reported-${rawId}` };
+    }, [latestPitEntryByTeam]);
+
+    const updateReportedAutoForTeam = useCallback(async (
+        teamNumber: number,
+        routineId: string,
+        name: string,
+        actions: AutoRoutineWaypoint[]
+    ): Promise<boolean> => {
+        if (!teamNumber || actions.length === 0) return false;
+
+        let latestEntry = latestPitEntryByTeam[teamNumber];
+        if (!latestEntry) {
+            const allTeamPitEntries = await loadPitScoutingByTeam(teamNumber);
+            latestEntry = allTeamPitEntries.sort((a, b) => b.timestamp - a.timestamp)[0];
+            if (!latestEntry) return false;
+        }
+
+        const rawId = stripReportedPrefix(routineId);
+        const reportedAutosByStart = coerceReportedAutosByStart(isRecord(latestEntry.gameData) ? latestEntry.gameData.reportedAutosByStart : undefined);
+        const now = Date.now();
+        let didUpdate = false;
+
+        const nextReportedAutosByStart: ReportedAutosByStart = START_POSITION_LABELS.reduce((acc, startLabel) => {
+            const autos = reportedAutosByStart[startLabel] ?? [];
+            acc[startLabel] = autos.map((auto) => {
+                if (auto.id !== rawId) return auto;
+                didUpdate = true;
+                return {
+                    ...auto,
+                    name: name.trim() || auto.name,
+                    actions,
+                    updatedAt: now,
+                };
+            });
+            return acc;
+        }, createEmptyReportedAutos());
+
+        if (!didUpdate) return false;
+
+        const updatedEntry: PitScoutingEntryBase = {
+            ...latestEntry,
+            timestamp: now,
+            gameData: {
+                ...(isRecord(latestEntry.gameData) ? latestEntry.gameData : {}),
+                reportedAutosByStart: nextReportedAutosByStart,
+            },
+        };
+
+        await savePitScoutingEntry(updatedEntry);
+
+        setLatestPitEntryByTeam((prev) => ({
+            ...prev,
+            [teamNumber]: updatedEntry,
+        }));
+
+        setTeamAutoRoutinesByTeam((prev) => {
+            const previousTeamRoutines = prev[teamNumber] ?? EMPTY_TEAM_AUTO_ROUTINES;
+            return {
+                ...prev,
+                [teamNumber]: {
+                    ...previousTeamRoutines,
+                    reported: buildReportedRoutinesFromReportedAutos(teamNumber, nextReportedAutosByStart),
+                },
+            };
+        });
+
+        return true;
+    }, [latestPitEntryByTeam]);
+
+    const deleteReportedAutoForTeam = useCallback(async (
+        teamNumber: number,
+        routineId: string
+    ): Promise<boolean> => {
+        if (!teamNumber) return false;
+
+        let latestEntry = latestPitEntryByTeam[teamNumber];
+        if (!latestEntry) {
+            const allTeamPitEntries = await loadPitScoutingByTeam(teamNumber);
+            latestEntry = allTeamPitEntries.sort((a, b) => b.timestamp - a.timestamp)[0];
+            if (!latestEntry) return false;
+        }
+
+        const rawId = stripReportedPrefix(routineId);
+        const reportedAutosByStart = coerceReportedAutosByStart(isRecord(latestEntry.gameData) ? latestEntry.gameData.reportedAutosByStart : undefined);
+        const now = Date.now();
+        let didDelete = false;
+
+        const nextReportedAutosByStart: ReportedAutosByStart = START_POSITION_LABELS.reduce((acc, startLabel) => {
+            const autos = reportedAutosByStart[startLabel] ?? [];
+            const nextAutos = autos.filter((auto) => auto.id !== rawId);
+            if (nextAutos.length !== autos.length) {
+                didDelete = true;
+            }
+            acc[startLabel] = nextAutos;
+            return acc;
+        }, createEmptyReportedAutos());
+
+        if (!didDelete) return false;
+
+        const updatedEntry: PitScoutingEntryBase = {
+            ...latestEntry,
+            timestamp: now,
+            gameData: {
+                ...(isRecord(latestEntry.gameData) ? latestEntry.gameData : {}),
+                reportedAutosByStart: nextReportedAutosByStart,
+            },
+        };
+
+        await savePitScoutingEntry(updatedEntry);
+
+        setLatestPitEntryByTeam((prev) => ({
+            ...prev,
+            [teamNumber]: updatedEntry,
+        }));
+
+        setTeamAutoRoutinesByTeam((prev) => {
+            const previousTeamRoutines = prev[teamNumber] ?? EMPTY_TEAM_AUTO_ROUTINES;
+            return {
+                ...prev,
+                [teamNumber]: {
+                    ...previousTeamRoutines,
+                    reported: buildReportedRoutinesFromReportedAutos(teamNumber, nextReportedAutosByStart),
+                },
+            };
+        });
+
+        setSelectedAutoRoutineBySlot((prevSelections) =>
+            prevSelections.map((selection) => (selection?.routineId === routineId ? null : selection))
+        );
+
+        return true;
+    }, [latestPitEntryByTeam]);
+
     const applyAllianceToRed = (allianceId: string) => {
         setSelectedRedAlliance(allianceId === "none" ? "" : allianceId);
         if (allianceId === "none") return;
@@ -611,6 +997,9 @@ export const useMatchStrategy = () => {
         getSelectedAutoRoutineForSlot,
         getSelectedAutoRoutineSelectionForSlot,
         setSelectedAutoRoutineForSlot,
+        addReportedAutoForTeam,
+        updateReportedAutoForTeam,
+        deleteReportedAutoForTeam,
         handleTeamChange,
         applyAllianceToRed,
         applyAllianceToBlue,

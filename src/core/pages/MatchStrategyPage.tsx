@@ -66,6 +66,9 @@ const MatchStrategyPage = (props: MatchStrategyPageProps) => {
         getSelectedAutoRoutineForSlot,
         getSelectedAutoRoutineSelectionForSlot,
         setSelectedAutoRoutineForSlot,
+        addReportedAutoForTeam,
+        updateReportedAutoForTeam,
+        deleteReportedAutoForTeam,
         handleTeamChange,
         applyAllianceToRed,
         applyAllianceToBlue,
@@ -168,6 +171,9 @@ const MatchStrategyPage = (props: MatchStrategyPageProps) => {
                         getSelectedAutoRoutineForSlot={getSelectedAutoRoutineForSlot}
                         getSelectedAutoRoutineSelectionForSlot={getSelectedAutoRoutineSelectionForSlot}
                         onSelectAutoRoutineForSlot={setSelectedAutoRoutineForSlot}
+                        onAddReportedAutoForTeam={addReportedAutoForTeam}
+                        onUpdateReportedAutoForTeam={updateReportedAutoForTeam}
+                        onDeleteReportedAutoForTeam={deleteReportedAutoForTeam}
                         onStatsTabChange={setActiveStatsTab}
                         onBlueAllianceChange={applyAllianceToBlue}
                         onRedAllianceChange={applyAllianceToRed}

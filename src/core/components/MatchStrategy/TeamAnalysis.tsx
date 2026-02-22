@@ -13,7 +13,7 @@ import { AllianceCard } from "./AllianceCard";
 import { AllianceSelectionControls } from "./AllianceSelectionControls";
 import type { Alliance } from "@/core/lib/allianceTypes";
 import type { TeamStats } from "@/core/types/team-stats";
-import type { AutoRoutineSelection, AutoRoutineSource, StrategyAutoRoutine } from "@/core/hooks/useMatchStrategy";
+import type { AutoRoutineSelection, AutoRoutineSource, AutoRoutineWaypoint, StartPositionLabel, StrategyAutoRoutine } from "@/core/hooks/useMatchStrategy";
 
 interface TeamSlotSpotVisibility {
     showShooting: boolean;
@@ -36,6 +36,9 @@ interface TeamAnalysisProps {
     getSelectedAutoRoutineForSlot: (slotIndex: number) => StrategyAutoRoutine | null;
     getSelectedAutoRoutineSelectionForSlot: (slotIndex: number) => AutoRoutineSelection | null;
     onSelectAutoRoutineForSlot: (slotIndex: number, selection: AutoRoutineSelection | null) => void;
+    onAddReportedAutoForTeam: (teamNumber: number, startLabel: StartPositionLabel, name: string, actions: AutoRoutineWaypoint[]) => Promise<AutoRoutineSelection | null>;
+    onUpdateReportedAutoForTeam: (teamNumber: number, routineId: string, name: string, actions: AutoRoutineWaypoint[]) => Promise<boolean>;
+    onDeleteReportedAutoForTeam: (teamNumber: number, routineId: string) => Promise<boolean>;
     onStatsTabChange: (value: string) => void;
     onBlueAllianceChange: (allianceId: string) => void;
     onRedAllianceChange: (allianceId: string) => void;
@@ -57,6 +60,9 @@ export const TeamAnalysis = ({
     getSelectedAutoRoutineForSlot,
     getSelectedAutoRoutineSelectionForSlot,
     onSelectAutoRoutineForSlot,
+    onAddReportedAutoForTeam,
+    onUpdateReportedAutoForTeam,
+    onDeleteReportedAutoForTeam,
     onStatsTabChange,
     onBlueAllianceChange,
     onRedAllianceChange
@@ -178,6 +184,9 @@ export const TeamAnalysis = ({
                         getSelectedAutoRoutineForSlot={getSelectedAutoRoutineForSlot}
                         getSelectedAutoRoutineSelectionForSlot={getSelectedAutoRoutineSelectionForSlot}
                         onSelectAutoRoutineForSlot={onSelectAutoRoutineForSlot}
+                        onAddReportedAutoForTeam={onAddReportedAutoForTeam}
+                        onUpdateReportedAutoForTeam={onUpdateReportedAutoForTeam}
+                        onDeleteReportedAutoForTeam={onDeleteReportedAutoForTeam}
                         onTouchStart={handleAllianceCardTouchStart}
                         onTouchEnd={handleAllianceCardTouchEnd}
                     />
@@ -197,6 +206,9 @@ export const TeamAnalysis = ({
                         getSelectedAutoRoutineForSlot={getSelectedAutoRoutineForSlot}
                         getSelectedAutoRoutineSelectionForSlot={getSelectedAutoRoutineSelectionForSlot}
                         onSelectAutoRoutineForSlot={onSelectAutoRoutineForSlot}
+                        onAddReportedAutoForTeam={onAddReportedAutoForTeam}
+                        onUpdateReportedAutoForTeam={onUpdateReportedAutoForTeam}
+                        onDeleteReportedAutoForTeam={onDeleteReportedAutoForTeam}
                         onTouchStart={handleAllianceCardTouchStart}
                         onTouchEnd={handleAllianceCardTouchEnd}
                     />

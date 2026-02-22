@@ -41,7 +41,6 @@ export function PitDataDisplay({ teamNumber, selectedEvent }: PitDataDisplayProp
                     id: typeof auto.id === 'string' ? auto.id : `${start}-${itemIndex}`,
                     label: typeof auto.name === 'string' && auto.name.trim() ? auto.name : `${start} Auto ${itemIndex + 1}`,
                     actions,
-                    alliance: 'blue' as const,
                     metricText: `${actions.length} actions`,
                     detailText: `${start}`,
                 } satisfies AutoPathListItem;
