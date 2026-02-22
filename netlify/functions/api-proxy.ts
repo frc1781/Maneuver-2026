@@ -37,6 +37,8 @@ export const handler: Handler = async (event) => {
     'Access-Control-Allow-Headers': 'Content-Type, X-Client-Api-Key',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Content-Type': 'application/json',
+    'Cache-Control': 'public, max-age=30, s-maxage=120, stale-while-revalidate=300',
+    Vary: 'X-Client-Api-Key',
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -86,10 +88,14 @@ export const handler: Handler = async (event) => {
     });
 
     const text = await upstreamResponse.text();
+    const upstreamCacheControl = upstreamResponse.headers.get('cache-control');
 
     return {
       statusCode: upstreamResponse.status,
-      headers,
+      headers: {
+        ...headers,
+        ...(upstreamCacheControl ? { 'Cache-Control': upstreamCacheControl } : {}),
+      },
       body: text || JSON.stringify({}),
     };
   } catch (error) {

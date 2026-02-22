@@ -208,7 +208,7 @@ const FieldCanvas = ({
 
         // Auto-save drawing layer to localStorage, but never overwrite an existing
         // non-empty stage drawing with an empty canvas during stage transition races.
-        const drawingCtx = drawingCanvas.getContext('2d');
+        const drawingCtx = drawingCanvas.getContext('2d', { willReadFrequently: true });
         const drawingKey = `fieldStrategy_${currentStageId}`;
         const existingDrawing = localStorage.getItem(drawingKey);
         let hasVisibleDrawing = false;

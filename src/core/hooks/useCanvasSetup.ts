@@ -77,7 +77,7 @@ export const useCanvasSetup = ({
 
       const bgCtx = bgCanvas.getContext('2d');
       const overlayCtx = overlayCanvas.getContext('2d');
-      const drawingCtx = drawingCanvas.getContext('2d');
+      const drawingCtx = drawingCanvas.getContext('2d', { willReadFrequently: true });
       if (!bgCtx || !overlayCtx || !drawingCtx) return;
 
       const img = new Image();
@@ -249,7 +249,7 @@ export const useCanvasSetup = ({
   // Clear only the drawing layer
   const clearCanvas = useCallback(() => {
     const drawingCanvas = drawingCanvasRef.current;
-    const ctx = drawingCanvas?.getContext('2d');
+    const ctx = drawingCanvas?.getContext('2d', { willReadFrequently: true });
     if (!drawingCanvas || !ctx) return;
 
     ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);

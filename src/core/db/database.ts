@@ -365,6 +365,10 @@ export const loadPitScoutingByTeamAndEvent = async (
   teamNumber: number,
   eventKey: string
 ): Promise<PitScoutingEntryBase | undefined> => {
+  if (!Number.isFinite(teamNumber) || !eventKey || typeof eventKey !== 'string') {
+    return undefined;
+  }
+
   const results = (await pitDB.pitScoutingData
     .where('[teamNumber+eventKey]')
     .equals([teamNumber, eventKey])

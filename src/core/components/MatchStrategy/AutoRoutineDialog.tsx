@@ -162,14 +162,21 @@ function ReportedRoutineTab({
                                             && selectedSelection.routineId === routine.id;
 
                                         return (
-                                            <button
+                                            <div
                                                 key={routine.id}
-                                                type="button"
-                                                className={`w-full rounded-md border p-3 text-left transition-colors ${isSelected
+                                                role="button"
+                                                tabIndex={0}
+                                                className={`w-full rounded-md border p-3 text-left transition-colors cursor-pointer ${isSelected
                                                     ? 'border-primary bg-primary/10'
                                                     : 'hover:bg-muted/40'
                                                     }`}
                                                 onClick={() => onSelectRoutine({ source: 'reported', routineId: routine.id })}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === 'Enter' || event.key === ' ') {
+                                                        event.preventDefault();
+                                                        onSelectRoutine({ source: 'reported', routineId: routine.id });
+                                                    }
+                                                }}
                                             >
                                                 <div className="flex items-center justify-between gap-2">
                                                     <p className="text-sm font-medium">{routine.label}</p>
@@ -203,7 +210,7 @@ function ReportedRoutineTab({
                                                 <p className="mt-1 text-xs text-muted-foreground">
                                                     {routine.actions.length} actions
                                                 </p>
-                                            </button>
+                                            </div>
                                         );
                                     })}
                                 </div>
@@ -236,6 +243,9 @@ export const AutoRoutineDialog = ({
     const [recordingName, setRecordingName] = useState('');
     const [editingRoutineId, setEditingRoutineId] = useState<string | null>(null);
     const [isSavingRoutine, setIsSavingRoutine] = useState(false);
+    const descriptionId = recordingStart === null
+        ? 'auto-routine-dialog-description'
+        : 'auto-routine-recorder-description';
 
     useEffect(() => {
         if (!open) return;
@@ -335,6 +345,7 @@ export const AutoRoutineDialog = ({
     return (
         <Dialog open={open} onOpenChange={handleDialogOpenChange}>
             <DialogContent
+                aria-describedby={descriptionId}
                 className={recordingStart !== null
                     ? "w-screen h-screen max-w-none max-h-none rounded-none border-0 p-4 sm:p-6 flex flex-col overflow-hidden"
                     : "w-[calc(100vw-1.5rem)] max-w-2xl max-h-[90vh] overflow-hidden p-4 sm:p-6 flex flex-col"
@@ -344,7 +355,7 @@ export const AutoRoutineDialog = ({
                     <>
                         <DialogHeader>
                             <DialogTitle>Auto Routines{teamNumber ? ` • Team ${teamNumber}` : ''}</DialogTitle>
-                            <DialogDescription>
+                            <DialogDescription id="auto-routine-dialog-description">
                                 Scouted autos are shown first when available. Reported autos are grouped by starting location.
                             </DialogDescription>
                         </DialogHeader>
@@ -381,7 +392,7 @@ export const AutoRoutineDialog = ({
                     <>
                         <DialogHeader>
                             <DialogTitle>{editingRoutineId ? 'Edit Reported Auto' : 'Record Reported Auto'}</DialogTitle>
-                            <DialogDescription>
+                            <DialogDescription id="auto-routine-recorder-description">
                                 Use the field map to build the reported auto path for {recordingStart}. Then save it with a name.
                             </DialogDescription>
                         </DialogHeader>

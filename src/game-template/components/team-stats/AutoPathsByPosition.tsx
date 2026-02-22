@@ -33,7 +33,6 @@ interface AutoPathsByPositionProps {
 }
 
 const START_POSITION_LABELS = ['Left Trench', 'Left Bump', 'Hub', 'Right Bump', 'Right Trench'];
-const START_POSITION_COLORS = ['yellow', 'orange', 'green', 'orange', 'yellow'];
 const POSITION_KEYS = [0, 1, 2, 3, 4] as const;
 type PositionIndex = (typeof POSITION_KEYS)[number];
 
@@ -144,7 +143,6 @@ export function AutoPathsByPosition({
             <div className="flex flex-wrap gap-2">
                 {POSITION_KEYS.map(pos => {
                     const count = matchesByPosition[pos]?.length || 0;
-                    const color = START_POSITION_COLORS[pos];
                     return (
                         <Button
                             key={pos}
@@ -157,10 +155,7 @@ export function AutoPathsByPosition({
                         >
                             {START_POSITION_LABELS[pos]}
                             <Badge variant="secondary" className={cn(
-                                'ml-1',
-                                color === 'yellow' && 'bg-yellow-500/20 text-yellow-300',
-                                color === 'orange' && 'bg-orange-500/20 text-orange-300',
-                                color === 'green' && 'bg-green-500/20 text-green-300',
+                                'ml-1 min-w-7 rounded-lg border-border bg-muted px-2 py-0.5 text-sm font-semibold text-foreground tabular-nums',
                             )}>
                                 {count}
                             </Badge>

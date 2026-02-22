@@ -28,6 +28,8 @@ import {
   getTBACacheStats,
 } from '@/core/lib/tbaCache';
 
+const inFlightEventFetches = new Map<string, Promise<TBAMatchData[]>>();
+
 export interface UseTBAMatchDataReturn {
   // State
   loading: boolean;
@@ -126,10 +128,17 @@ export function useTBAMatchData(): UseTBAMatchDataReturn {
     apiKey: string,
     forceRefresh: boolean = false
   ): Promise<TBAMatchData[]> => {
+    const requestKey = `${eventKey}:${forceRefresh ? 'force' : 'normal'}`;
+    const existingRequest = inFlightEventFetches.get(requestKey);
+    if (existingRequest) {
+      return existingRequest;
+    }
+
     setLoading(true);
     setError(null);
 
-    try {
+    const requestPromise = (async () => {
+      try {
       const isDemoEvent = /^demo/i.test(eventKey);
 
       // Check cache first (always, even if expired - offline-first)
@@ -209,18 +218,26 @@ export function useTBAMatchData(): UseTBAMatchDataReturn {
       
       // If we reach here, we're offline and have no cache
       throw new Error('No cached data available and you are offline');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch event matches';
-      setError(errorMessage);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch event matches';
+        setError(errorMessage);
       
-      // Don't show error toast if we're offline and have cached data
-      const cached = await getCachedTBAEventMatches(eventKey, true);
-      if (cached.length === 0 || navigator.onLine) {
-        toast.error(errorMessage);
+        // Don't show error toast if we're offline and have cached data
+        const cached = await getCachedTBAEventMatches(eventKey, true);
+        if (cached.length === 0 || navigator.onLine) {
+          toast.error(errorMessage);
+        }
+      
+        return [];
       }
-      
-      return [];
+    })();
+
+    inFlightEventFetches.set(requestKey, requestPromise);
+
+    try {
+      return await requestPromise;
     } finally {
+      inFlightEventFetches.delete(requestKey);
       setLoading(false);
     }
   }, []);

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from "react";
 
 // Maximum number of undo states to keep in history
 const MAX_UNDO_HISTORY_LENGTH = 20;
+const READBACK_CONTEXT_OPTIONS: CanvasRenderingContext2DSettings = { willReadFrequently: true };
 
 interface Point {
   x: number;
@@ -83,7 +84,7 @@ export const useCanvasDrawing = ({
     const dataURL = canvas.toDataURL();
 
     // Check if canvas has any content (non-transparent pixels)
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', READBACK_CONTEXT_OPTIONS);
     const imageData = ctx?.getImageData(0, 0, canvas.width, canvas.height);
     const hasContent = imageData?.data.some((val, i) => i % 4 === 3 && val > 0) ?? false;
     console.log('[SaveToHistory] Saving state - has visible content:', hasContent, 'canvas size:', canvas.width, 'x', canvas.height);
@@ -121,7 +122,7 @@ export const useCanvasDrawing = ({
     console.log('[Undo] Going from index', oldIndex, 'to', historyIndexRef.current, '- history length:', historyRef.current.length);
 
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
+    const ctx = canvas?.getContext('2d', READBACK_CONTEXT_OPTIONS);
     if (!canvas || !ctx || !previousState) {
       console.log('[Undo] Missing canvas, ctx, or previousState');
       return;
@@ -174,7 +175,7 @@ export const useCanvasDrawing = ({
     if (!isDrawing || !lastPoint) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
+    const ctx = canvas?.getContext('2d', READBACK_CONTEXT_OPTIONS);
     if (!canvas || !ctx) return;
 
     const currentPoint = getPointFromEvent(e);

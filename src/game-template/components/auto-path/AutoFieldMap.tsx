@@ -250,9 +250,13 @@ function AutoFieldMapContent({
     useEffect(() => {
         const loadPitData = async () => {
             if (!teamNumber) return;
+
+            const parsedTeamNumber = Number(teamNumber);
+            if (!Number.isFinite(parsedTeamNumber) || parsedTeamNumber <= 0) return;
+
             try {
                 const eventKey = localStorage.getItem('eventKey') || '';
-                const pitData = await loadPitScoutingByTeamAndEvent(Number(teamNumber), eventKey);
+                const pitData = await loadPitScoutingByTeamAndEvent(parsedTeamNumber, eventKey);
                 if (pitData && pitData.gameData) {
                     setRobotCapacity(pitData.gameData.fuelCapacity as number);
                 }
