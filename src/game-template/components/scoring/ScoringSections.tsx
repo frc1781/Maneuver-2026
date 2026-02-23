@@ -12,6 +12,7 @@ interface ScoringSectionsProps {
   phase: 'auto' | 'teleop';
   onAddAction: (action: any) => void; // Accepts action object
   actions: any[]; // Array of timestamped action objects
+  scoutOptions?: Record<string, boolean>;
   onUndo?: () => void;
   canUndo?: boolean;
   // Navigation props (for full-screen implementations)
@@ -26,6 +27,7 @@ export function ScoringSections({
   phase,
   onAddAction,
   actions = [],
+  scoutOptions,
   onUndo,
   canUndo = false,
   matchNumber,
@@ -43,6 +45,7 @@ export function ScoringSections({
       <AutoFieldMap
         onAddAction={onAddAction}
         actions={actions}
+        scoutOptions={scoutOptions}
         onUndo={onUndo}
         canUndo={canUndo}
         matchNumber={matchNumber}

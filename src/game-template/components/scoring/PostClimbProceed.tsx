@@ -19,6 +19,7 @@ export interface PostClimbProceedProps {
     onProceed: () => void;
     onStay: () => void;
     nextPhaseName?: string;
+    highlightProceed?: boolean;
 }
 
 // =============================================================================
@@ -30,6 +31,7 @@ export function PostClimbProceed({
     onProceed,
     onStay,
     nextPhaseName = "Next Phase",
+    highlightProceed = false,
 }: PostClimbProceedProps) {
     return (
         <div className={cn("absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm pointer-events-none p-4", isFieldRotated && "rotate-180")}>
@@ -44,7 +46,10 @@ export function PostClimbProceed({
                 <CardFooter className="flex flex-col gap-2 pt-2">
                     <Button
                         onClick={() => onProceed()}
-                        className="w-full h-12 text-base font-bold"
+                        className={cn(
+                            "w-full h-12 text-base font-bold",
+                            highlightProceed && "bg-green-600 hover:bg-green-500 animate-pulse"
+                        )}
                     >
                         Proceed to {nextPhaseName}
                     </Button>

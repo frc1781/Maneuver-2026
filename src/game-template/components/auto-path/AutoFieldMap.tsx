@@ -50,6 +50,7 @@ import {
     GAME_SCOUT_OPTION_KEYS,
     getEffectiveScoutOptions,
 } from "@/game-template/scout-options";
+import { CORE_SCOUT_OPTION_KEYS } from "@/core/components/GameStartComponents/ScoutOptionsSheet";
 
 // Local sub-components
 import { AutoActionLog } from "./components/AutoActionLog";
@@ -75,6 +76,8 @@ const START_KEY_LABELS: Record<'trench1' | 'bump1' | 'hub' | 'bump2' | 'trench2'
 };
 
 const MOVING_SHOT_MIN_PATH_LENGTH = 0.05;
+const AUTO_SWITCH_ONCE_STORAGE_PREFIX = 'autoSwitchToTeleopDone';
+const AUTO_CUE_TARGET_MS = 20000;
 
 const getPathLength = (points: { x: number; y: number }[]): number => {
     if (points.length < 2) return 0;
@@ -96,6 +99,7 @@ const getPathLength = (points: { x: number; y: number }[]): number => {
 export interface AutoFieldMapProps {
     onAddAction: (action: any) => void;
     actions: PathWaypoint[];
+    scoutOptions?: Record<string, boolean>;
     onUndo?: () => void;
     canUndo?: boolean;
     startPosition?: number;
@@ -135,6 +139,7 @@ export function AutoFieldMap(props: AutoFieldMapProps) {
             enableNoShow={props.enableNoShow}
         >
             <AutoFieldMapContent
+                scoutOptions={props.scoutOptions}
                 recordingMode={props.recordingMode}
                 preferredStartKey={props.preferredStartKey}
                 headerLabel={props.headerLabel}
@@ -150,12 +155,14 @@ export function AutoFieldMap(props: AutoFieldMapProps) {
 // =============================================================================
 
 function AutoFieldMapContent({
+    scoutOptions,
     recordingMode = false,
     preferredStartKey,
     headerLabel,
     headerInputSlot,
     recordingActionSlot,
 }: {
+    scoutOptions?: Record<string, boolean>;
     recordingMode?: boolean;
     preferredStartKey?: 'trench1' | 'bump1' | 'hub' | 'bump2' | 'trench2';
     headerLabel?: string;
@@ -210,8 +217,22 @@ function AutoFieldMapContent({
     const navigate = useNavigate();
     const location = useLocation();
     const { transformation } = useGame();
+    const autoSwitchOnceStorageKey = useMemo(() => {
+        const eventKey = location.state?.inputs?.eventKey ?? 'unknown-event';
+        const matchType = location.state?.inputs?.matchType ?? 'qm';
+        const matchNumber = location.state?.inputs?.matchNumber ?? 'unknown-match';
+        const teamNumber = location.state?.inputs?.selectTeam ?? 'unknown-team';
+        return `${AUTO_SWITCH_ONCE_STORAGE_PREFIX}:${eventKey}:${matchType}:${matchNumber}:${teamNumber}`;
+    }, [
+        location.state?.inputs?.eventKey,
+        location.state?.inputs?.matchType,
+        location.state?.inputs?.matchNumber,
+        location.state?.inputs?.selectTeam,
+    ]);
 
     const fieldCanvasRef = useRef<FieldCanvasRef>(null);
+    const autoScreenEnteredAtRef = useRef(Date.now());
+    const hasAutoAdvancedRef = useRef(false);
     const startSeedInFlightRef = useRef(false);
     const canvasRef = useMemo(() => ({
         get current() { return fieldCanvasRef.current?.canvas ?? null; }
@@ -225,6 +246,8 @@ function AutoFieldMapContent({
     const [robotCapacity, setRobotCapacity] = useState<number | undefined>();
     const [actionLogOpen, setActionLogOpen] = useState(false);
     const [pendingShotTypeWaypoint, setPendingShotTypeWaypoint] = useState<PathWaypoint | null>(null);
+    const [autoElapsedMs, setAutoElapsedMs] = useState(0);
+    const [elapsedSinceStartConfirmationMs, setElapsedSinceStartConfirmationMs] = useState(0);
 
     // Broken down state - persisted with localStorage
     const [brokenDownStart, setBrokenDownStart] = useState<number | null>(() => {
@@ -238,7 +261,27 @@ function AutoFieldMapContent({
     const isBrokenDown = brokenDownStart !== null;
 
     const isMobile = useIsMobile();
-    const effectiveScoutOptions = getEffectiveScoutOptions();
+    const effectiveScoutOptions = getEffectiveScoutOptions(scoutOptions);
+    const startAutoCueFromStartConfirmation =
+        effectiveScoutOptions[CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation] !== false;
+    const startAutoCueFromAutoScreenEntry =
+        effectiveScoutOptions[CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry] === true;
+    const autoAdvanceToTeleopAfter20s =
+        effectiveScoutOptions[CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s] === true;
+    const firstConfirmedStartTimestamp = useMemo(() => {
+        const firstStartAction = actions.find((action) => action.type === 'start');
+        return typeof firstStartAction?.timestamp === 'number'
+            ? firstStartAction.timestamp
+            : null;
+    }, [actions]);
+    const autoCueTimerStartTimestamp = startAutoCueFromAutoScreenEntry
+        ? autoScreenEnteredAtRef.current
+        : ((startAutoCueFromStartConfirmation || autoAdvanceToTeleopAfter20s) ? firstConfirmedStartTimestamp : null);
+    const autoCueCountdownSeconds = autoCueTimerStartTimestamp === null
+        ? null
+        : Math.max(0, Math.ceil((AUTO_CUE_TARGET_MS - autoElapsedMs) / 1000));
+    const shouldPulseAutoBorder = autoElapsedMs >= AUTO_CUE_TARGET_MS;
+    const shouldAutoAdvanceToTeleop = autoAdvanceToTeleopAfter20s && elapsedSinceStartConfirmationMs >= AUTO_CUE_TARGET_MS;
     const disableHubFuelScoringPopup =
         effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableHubFuelScoringPopup] === true;
     const disablePassingPopup =
@@ -294,6 +337,45 @@ function AutoFieldMapContent({
             setIsFullscreen(false);
         }
     }, [isMobile, recordingMode]);
+
+    useEffect(() => {
+        if (autoCueTimerStartTimestamp === null) {
+            setAutoElapsedMs(0);
+            return;
+        }
+
+        const updateElapsed = () => {
+            const elapsed = Date.now() - autoCueTimerStartTimestamp;
+            setAutoElapsedMs(Math.min(Math.max(elapsed, 0), AUTO_PHASE_DURATION_MS));
+        };
+
+        updateElapsed();
+        const intervalId = window.setInterval(updateElapsed, 250);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [autoCueTimerStartTimestamp]);
+
+    useEffect(() => {
+        if (firstConfirmedStartTimestamp === null) {
+            hasAutoAdvancedRef.current = false;
+            setElapsedSinceStartConfirmationMs(0);
+            return;
+        }
+
+        const updateElapsed = () => {
+            const elapsed = Date.now() - firstConfirmedStartTimestamp;
+            setElapsedSinceStartConfirmationMs(Math.min(Math.max(elapsed, 0), AUTO_PHASE_DURATION_MS));
+        };
+
+        updateElapsed();
+        const intervalId = window.setInterval(updateElapsed, 250);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [firstConfirmedStartTimestamp]);
 
     // Recalculate current zone whenever actions change (handles undo properly)
     useEffect(() => {
@@ -651,6 +733,93 @@ function AutoFieldMapContent({
         });
     };
 
+    const proceedToTeleop = useCallback(() => {
+        if (!onProceed) return;
+
+        const stuckEntries = Object.entries(stuckStarts);
+        const finalActions = [...actions];
+        const now = Date.now();
+        const nextStuckStarts: Record<string, number> = {};
+
+        for (const [elementKey, startTime] of stuckEntries) {
+            if (startTime && typeof startTime === 'number') {
+                const obstacleType = elementKey.includes('trench') ? 'trench' : 'bump';
+                const element = FIELD_ELEMENTS[elementKey as keyof typeof FIELD_ELEMENTS];
+                const duration = Math.min(now - startTime, AUTO_PHASE_DURATION_MS);
+
+                const unstuckWaypoint: PathWaypoint = {
+                    id: generateId(),
+                    type: 'unstuck',
+                    action: `unstuck-${obstacleType}`,
+                    position: element ? { x: element.x, y: element.y } : { x: 0, y: 0 },
+                    timestamp: now,
+                    duration,
+                    obstacleType: obstacleType as 'trench' | 'bump',
+                    amountLabel: formatDurationSecondsLabel(duration),
+                };
+
+                finalActions.push(unstuckWaypoint);
+                nextStuckStarts[elementKey] = now;
+            }
+        }
+
+        if (stuckEntries.length > 0) {
+            setStuckStarts(nextStuckStarts);
+        }
+
+        if (brokenDownStart) {
+            const duration = Date.now() - brokenDownStart;
+            const finalTotal = totalBrokenDownTime + duration;
+            localStorage.setItem('autoBrokenDownTime', String(finalTotal));
+        }
+
+        onProceed(finalActions);
+    }, [
+        onProceed,
+        stuckStarts,
+        actions,
+        generateId,
+        setStuckStarts,
+        brokenDownStart,
+        totalBrokenDownTime,
+    ]);
+
+    useEffect(() => {
+        if (recordingMode || hasAutoAdvancedRef.current) return;
+        if (!shouldAutoAdvanceToTeleop) return;
+        if (sessionStorage.getItem(autoSwitchOnceStorageKey) === 'true') return;
+
+        const isBusyWithAction =
+            pendingWaypoint !== null ||
+            pendingShotTypeWaypoint !== null ||
+            isSelectingScore ||
+            isSelectingPass ||
+            isSelectingCollect ||
+            selectedStartKey !== null ||
+            showPostClimbProceed ||
+            hookDrawingPoints.length > 0;
+
+        if (isBusyWithAction) return;
+
+        hasAutoAdvancedRef.current = true;
+        sessionStorage.setItem(autoSwitchOnceStorageKey, 'true');
+        toast.info("Switching to Teleop");
+        proceedToTeleop();
+    }, [
+        recordingMode,
+        shouldAutoAdvanceToTeleop,
+        autoSwitchOnceStorageKey,
+        pendingWaypoint,
+        pendingShotTypeWaypoint,
+        isSelectingScore,
+        isSelectingPass,
+        isSelectingCollect,
+        selectedStartKey,
+        showPostClimbProceed,
+        hookDrawingPoints,
+        proceedToTeleop,
+    ]);
+
     // ==========================================================================
     // RENDER
     // ==========================================================================
@@ -681,48 +850,9 @@ function AutoFieldMapContent({
                 canUndo={canUndo}
                 onUndo={handleUndo}
                 onBack={onBack}
-                onProceed={recordingMode ? undefined : () => {
-                    // Capture any active stuck timers before proceeding
-                    const stuckEntries = Object.entries(stuckStarts);
-                    const finalActions = [...actions];
-                    const now = Date.now();
-                    const nextStuckStarts: Record<string, number> = {};
-
-                    for (const [elementKey, startTime] of stuckEntries) {
-                        if (startTime && typeof startTime === 'number') {
-                            const obstacleType = elementKey.includes('trench') ? 'trench' : 'bump';
-                            const element = FIELD_ELEMENTS[elementKey as keyof typeof FIELD_ELEMENTS];
-                            const duration = Math.min(now - startTime, AUTO_PHASE_DURATION_MS);
-
-                            const unstuckWaypoint: PathWaypoint = {
-                                id: generateId(),
-                                type: 'unstuck',
-                                action: `unstuck-${obstacleType}`,
-                                position: element ? { x: element.x, y: element.y } : { x: 0, y: 0 },
-                                timestamp: now,
-                                duration,
-                                obstacleType: obstacleType as 'trench' | 'bump',
-                                amountLabel: formatDurationSecondsLabel(duration),
-                            };
-
-                            finalActions.push(unstuckWaypoint);
-                            // Carry stuck state into teleop by resetting timer at phase boundary
-                            nextStuckStarts[elementKey] = now;
-                        }
-                    }
-
-                    if (stuckEntries.length > 0) {
-                        setStuckStarts(nextStuckStarts);
-                    }
-
-                    // Capture any active broken down time before proceeding
-                    if (brokenDownStart) {
-                        const duration = Date.now() - brokenDownStart;
-                        const finalTotal = totalBrokenDownTime + duration;
-                        localStorage.setItem('autoBrokenDownTime', String(finalTotal));
-                    }
-                    if (onProceed) onProceed(finalActions);
-                }}
+                onProceed={recordingMode ? undefined : proceedToTeleop}
+                highlightProceed={shouldPulseAutoBorder}
+                proceedCountdownSeconds={autoCueCountdownSeconds}
                 toggleFieldOrientation={toggleFieldOrientation}
                 isBrokenDown={isBrokenDown}
                 onBrokenDownToggle={recordingMode ? undefined : handleBrokenDownToggle}
@@ -738,6 +868,7 @@ function AutoFieldMapContent({
                     "relative rounded-lg overflow-hidden border border-slate-700 bg-slate-900 select-none",
                     "w-full aspect-2/1",
                     isFullscreen ? "max-h-[85vh] m-auto" : "h-auto",
+                    shouldPulseAutoBorder && "border-green-500 animate-pulse",
                     isFieldRotated && "rotate-180" // 180° rotation for field orientation preference
                 )}
             >
@@ -900,9 +1031,10 @@ function AutoFieldMapContent({
                 {showPostClimbProceed && onProceed && (
                     <PostClimbProceed
                         isFieldRotated={isFieldRotated}
-                        onProceed={onProceed}
+                        onProceed={proceedToTeleop}
                         onStay={() => setShowPostClimbProceed(false)}
                         nextPhaseName="Teleop"
+                        highlightProceed={shouldPulseAutoBorder}
                     />
                 )}
 

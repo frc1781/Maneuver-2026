@@ -31,11 +31,64 @@ import {
 } from "@/game-template/scout-options";
 
 const SCOUT_OPTIONS_STORAGE_KEY = "scoutOptions";
+const AUTO_SWITCH_ONCE_STORAGE_PREFIX = 'autoSwitchToTeleopDone';
 
 const DEFAULT_SCOUT_OPTIONS: ScoutOptionsState = {
-  [CORE_SCOUT_OPTION_KEYS.placeholderOptionA]: false,
-  [CORE_SCOUT_OPTION_KEYS.placeholderOptionB]: false,
+  [CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation]: false,
+  [CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry]: false,
+  [CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s]: false,
   ...GAME_SCOUT_OPTION_DEFAULTS,
+};
+
+const normalizeAutoCueStartMode = (options: ScoutOptionsState): ScoutOptionsState => {
+  const autoAdvanceToTeleop =
+    options[CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s] === true;
+  const fromAutoScreenEntry =
+    options[CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry] === true;
+  const fromStartConfirmation =
+    options[CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation] !== false;
+
+  if (autoAdvanceToTeleop) {
+    return {
+      ...options,
+      [CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation]: false,
+      [CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry]: false,
+      [CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s]: true,
+    };
+  }
+
+  if (fromAutoScreenEntry) {
+    return {
+      ...options,
+      [CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation]: false,
+      [CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry]: true,
+      [CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s]: false,
+    };
+  }
+
+  if (!fromStartConfirmation) {
+    return {
+      ...options,
+      [CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation]: false,
+      [CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry]: false,
+      [CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s]: false,
+    };
+  }
+
+  return {
+    ...options,
+    [CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry]: false,
+    [CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s]: false,
+  };
+};
+
+const buildAutoSwitchOnceStorageKey = (
+  eventKey: string,
+  matchType: "qm" | "sf" | "f",
+  matchNumber: string,
+  teamNumber: string,
+) => {
+  return `${AUTO_SWITCH_ONCE_STORAGE_PREFIX}:${eventKey}:${matchType}:${matchNumber}:${teamNumber}`;
 };
 
 const GameStartPage = () => {
@@ -119,10 +172,10 @@ const GameStartPage = () => {
 
     try {
       const parsed = JSON.parse(stored) as ScoutOptionsState;
-      return {
+      return normalizeAutoCueStartMode({
         ...DEFAULT_SCOUT_OPTIONS,
         ...parsed,
-      };
+      });
     } catch {
       return DEFAULT_SCOUT_OPTIONS;
     }
@@ -207,10 +260,40 @@ const GameStartPage = () => {
   };
 
   const handleScoutOptionChange = (key: string, value: boolean) => {
-    setScoutOptions((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
+    setScoutOptions((prev) => {
+      const next = {
+        ...prev,
+        [key]: value,
+      };
+
+      if (key === CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation && value) {
+        next[CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry] = false;
+        next[CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s] = false;
+      }
+
+      if (key === CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry && value) {
+        next[CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation] = false;
+        next[CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s] = false;
+      }
+
+      if (key === CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s && value) {
+        next[CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation] = false;
+        next[CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry] = false;
+      }
+
+      if (
+        (key === CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation ||
+          key === CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry ||
+          key === CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s) &&
+        value === false
+      ) {
+        next[CORE_SCOUT_OPTION_KEYS.startAutoCueFromStartConfirmation] = false;
+        next[CORE_SCOUT_OPTION_KEYS.startAutoCueFromAutoScreenEntry] = false;
+        next[CORE_SCOUT_OPTION_KEYS.autoAdvanceToTeleopAfter20s] = false;
+      }
+
+      return normalizeAutoCueStartMode(next);
+    });
   };
 
   const validateInputs = () => {
@@ -265,6 +348,14 @@ const GameStartPage = () => {
     localStorage.setItem("selectTeam", selectTeam);
     localStorage.setItem("alliance", alliance);
     localStorage.setItem(SCOUT_OPTIONS_STORAGE_KEY, JSON.stringify(scoutOptions));
+
+    const autoSwitchOnceStorageKey = buildAutoSwitchOnceStorageKey(
+      eventKey,
+      matchType,
+      matchNumber,
+      selectTeam,
+    );
+    sessionStorage.removeItem(autoSwitchOnceStorageKey);
 
     localStorage.setItem("autoStateStack", JSON.stringify([]));
     localStorage.setItem("teleopStateStack", JSON.stringify([]));

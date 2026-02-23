@@ -76,6 +76,8 @@ export interface FieldHeaderProps {
     onUndo?: () => void;
     onBack?: () => void;
     onProceed?: () => void;
+    highlightProceed?: boolean;
+    proceedCountdownSeconds?: number | null;
     toggleFieldOrientation?: () => void;
     
     // Broken down tracking
@@ -158,6 +160,8 @@ export function FieldHeader({
     onUndo,
     onBack,
     onProceed,
+    highlightProceed = false,
+    proceedCountdownSeconds = null,
     toggleFieldOrientation,
     isBrokenDown = false,
     onBrokenDownToggle,
@@ -168,6 +172,10 @@ export function FieldHeader({
 }: FieldHeaderProps) {
     const phaseLabel = phase === 'auto' ? 'Autonomous' : 'Teleop';
     const proceedLabel = phase === 'auto' ? 'Teleop' : 'Post Match';
+    const proceedDisplayLabel =
+        phase === 'auto' && proceedCountdownSeconds !== null
+            ? `${proceedLabel} (${proceedCountdownSeconds}s)`
+            : proceedLabel;
     
     const [showNoShowDialog, setShowNoShowDialog] = useState(false);
 
@@ -427,10 +435,11 @@ export function FieldHeader({
                         onClick={onProceed}
                         className={cn(
                             "h-8 px-3 ml-1 text-[11px] font-bold tracking-tight gap-1",
-                            phase === 'teleop' && "bg-green-600 hover:bg-green-500"
+                            phase === 'teleop' && "bg-green-600 hover:bg-green-500",
+                            highlightProceed && "bg-green-600 hover:bg-green-500 animate-pulse"
                         )}
                     >
-                        <span className="hidden sm:inline">{proceedLabel}</span>
+                        <span className="hidden sm:inline">{proceedDisplayLabel}</span>
                         <ArrowRight className="h-4 w-4" />
                     </Button>
                 )}

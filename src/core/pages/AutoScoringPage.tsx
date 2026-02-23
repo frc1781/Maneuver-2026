@@ -225,6 +225,7 @@ const AutoScoringPage = () => {
             phase="auto"
             onAddAction={addScoringAction}
             actions={scoringActions}
+            scoutOptions={states?.inputs?.scoutOptions}
             onUndo={undoLastAction}
             canUndo={undoHistory.length > 0}
             matchNumber={states?.inputs?.matchNumber}
