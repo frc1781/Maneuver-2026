@@ -263,6 +263,11 @@ export const AutoRoutineDialog = ({
         onOpenChange(false);
     };
 
+    const handleClearSelection = () => {
+        onSelectRoutine(null);
+        onOpenChange(false);
+    };
+
     const openRecorderForCreate = (startLabel: StartPositionLabel) => {
         const nextIndex = ((reportedRoutines.filter((routine) => routine.startLabel === startLabel).length) || 0) + 1;
         setRecordingStart(startLabel);
@@ -359,6 +364,19 @@ export const AutoRoutineDialog = ({
                                 Scouted autos are shown first when available. Reported autos are grouped by starting location.
                             </DialogDescription>
                         </DialogHeader>
+
+                        {selectedSelection ? (
+                            <div className="flex justify-end pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleClearSelection}
+                                >
+                                    Clear Selected Auto
+                                </Button>
+                            </div>
+                        ) : null}
 
                         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as AutoRoutineSource)} className="w-full" enableSwipe={true}>
                             <TabsList className="grid w-full grid-cols-2 shrink-0">

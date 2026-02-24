@@ -157,6 +157,16 @@ export const AllianceCard = ({
                                         >
                                             Auto Routine
                                         </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-7 px-2 text-xs"
+                                            disabled={!team || !getSelectedAutoRoutineForSlot(teamIndex)}
+                                            onClick={() => onSelectAutoRoutineForSlot(teamIndex, null)}
+                                        >
+                                            Clear Auto
+                                        </Button>
                                     </div>
 
                                     {team && getSelectedAutoRoutineForSlot(teamIndex) ? (
