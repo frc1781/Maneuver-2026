@@ -210,6 +210,23 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
     const roleInactiveThiefCount = teamMatches.filter(m => m.gameData?.endgame?.roleInactiveThief === true).length;
     const roleInactiveDefenseCount = teamMatches.filter(m => m.gameData?.endgame?.roleInactiveDefense === true).length;
 
+    // Accuracy selections (qualitative buckets)
+    const accuracyAllCount = teamMatches.filter(m => m.gameData?.endgame?.accuracyAll === true).length;
+    const accuracyMostCount = teamMatches.filter(m => m.gameData?.endgame?.accuracyMost === true).length;
+    const accuracySomeCount = teamMatches.filter(m => m.gameData?.endgame?.accuracySome === true).length;
+    const accuracyFewCount = teamMatches.filter(m => m.gameData?.endgame?.accuracyFew === true).length;
+    const accuracyLittleCount = teamMatches.filter(m => m.gameData?.endgame?.accuracyLittle === true).length;
+    const accuracySelectionCount = accuracyAllCount + accuracyMostCount + accuracySomeCount + accuracyFewCount + accuracyLittleCount;
+    const weightedAccuracyTotal =
+        (accuracyAllCount * 5)
+        + (accuracyMostCount * 4)
+        + (accuracySomeCount * 3)
+        + (accuracyFewCount * 2)
+        + (accuracyLittleCount * 1);
+    const accuracyScore = accuracySelectionCount > 0
+        ? Math.round((weightedAccuracyTotal / (accuracySelectionCount * 5)) * 100)
+        : 0;
+
     // Calculate primary roles (most frequently played)
     const activeRoles = [
         { name: 'Cycler', count: roleActiveCyclerCount },
@@ -395,6 +412,22 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
         climbSuccessRate: percent(climbSuccessCount, matchCount),
         brokeDownCount,
         noShowCount,
+        accuracyAllRate: percent(accuracyAllCount, matchCount),
+        accuracyMostRate: percent(accuracyMostCount, matchCount),
+        accuracySomeRate: percent(accuracySomeCount, matchCount),
+        accuracyFewRate: percent(accuracyFewCount, matchCount),
+        accuracyLittleRate: percent(accuracyLittleCount, matchCount),
+        accuracyScore,
+        roleActiveCleanUpRate: percent(roleActiveCleanUpCount, matchCount),
+        roleActivePasserRate: percent(roleActivePasserCount, matchCount),
+        roleActiveDefenseRate: percent(roleActiveDefenseCount, matchCount),
+        roleActiveCyclerRate: percent(roleActiveCyclerCount, matchCount),
+        roleActiveThiefRate: percent(roleActiveThiefCount, matchCount),
+        roleInactiveCleanUpRate: percent(roleInactiveCleanUpCount, matchCount),
+        roleInactivePasserRate: percent(roleInactivePasserCount, matchCount),
+        roleInactiveDefenseRate: percent(roleInactiveDefenseCount, matchCount),
+        roleInactiveCyclerRate: percent(roleInactiveCyclerCount, matchCount),
+        roleInactiveThiefRate: percent(roleInactiveThiefCount, matchCount),
         startPositions: startPositionPercentages,
         matchResults,
 
@@ -572,6 +605,22 @@ function getEmptyStats(): Omit<TeamStats, 'teamNumber' | 'eventKey'> {
         teleopShotStationaryRate: 0,
         brokeDownCount: 0,
         noShowCount: 0,
+        accuracyAllRate: 0,
+        accuracyMostRate: 0,
+        accuracySomeRate: 0,
+        accuracyFewRate: 0,
+        accuracyLittleRate: 0,
+        accuracyScore: 0,
+        roleActiveCleanUpRate: 0,
+        roleActivePasserRate: 0,
+        roleActiveDefenseRate: 0,
+        roleActiveCyclerRate: 0,
+        roleActiveThiefRate: 0,
+        roleInactiveCleanUpRate: 0,
+        roleInactivePasserRate: 0,
+        roleInactiveDefenseRate: 0,
+        roleInactiveCyclerRate: 0,
+        roleInactiveThiefRate: 0,
         startPositions: {},
         matchResults: [],
     };

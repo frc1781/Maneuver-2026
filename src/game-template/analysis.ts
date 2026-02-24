@@ -275,6 +275,11 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             acc.passedToAllianceFromNeutral += gameData?.endgame?.passedToAllianceFromNeutral ? 1 : 0;
             acc.passedToAllianceFromOpponent += gameData?.endgame?.passedToAllianceFromOpponent ? 1 : 0;
             acc.passedToNeutral += gameData?.endgame?.passedToNeutral ? 1 : 0;
+            acc.accuracyAll += gameData?.endgame?.accuracyAll ? 1 : 0;
+            acc.accuracyMost += gameData?.endgame?.accuracyMost ? 1 : 0;
+            acc.accuracySome += gameData?.endgame?.accuracySome ? 1 : 0;
+            acc.accuracyFew += gameData?.endgame?.accuracyFew ? 1 : 0;
+            acc.accuracyLittle += gameData?.endgame?.accuracyLittle ? 1 : 0;
 
             // Active shift roles (stored in endgame section)
             acc.roleActiveCleanUp += gameData?.endgame?.roleActiveCleanUp ? 1 : 0;
@@ -324,6 +329,11 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             passedToAllianceFromNeutral: 0,
             passedToAllianceFromOpponent: 0,
             passedToNeutral: 0,
+            accuracyAll: 0,
+            accuracyMost: 0,
+            accuracySome: 0,
+            accuracyFew: 0,
+            accuracyLittle: 0,
             startPositionCounts: {} as Record<number, number>,
             roleActiveCleanUp: 0,
             roleActivePasser: 0,
@@ -412,6 +422,16 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             : 0;
         const autoShotTypeTotal = totals.autoShotOnTheMove + totals.autoShotStationary;
         const teleopShotTypeTotal = totals.teleopShotOnTheMove + totals.teleopShotStationary;
+        const accuracySelectionCount = totals.accuracyAll + totals.accuracyMost + totals.accuracySome + totals.accuracyFew + totals.accuracyLittle;
+        const weightedAccuracyTotal =
+            (totals.accuracyAll * 5)
+            + (totals.accuracyMost * 4)
+            + (totals.accuracySome * 3)
+            + (totals.accuracyFew * 2)
+            + (totals.accuracyLittle * 1);
+        const accuracyScore = accuracySelectionCount > 0
+            ? Math.round((weightedAccuracyTotal / (accuracySelectionCount * 5)) * 100)
+            : 0;
 
         // Calculate primary roles (most frequently played, supporting ties)
         const activeRoles = [
@@ -518,6 +538,12 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             passedToAllianceFromNeutralRate: Math.round((totals.passedToAllianceFromNeutral / matchCount) * 100),
             passedToAllianceFromOpponentRate: Math.round((totals.passedToAllianceFromOpponent / matchCount) * 100),
             passedToNeutralRate: Math.round((totals.passedToNeutral / matchCount) * 100),
+            accuracyAllRate: Math.round((totals.accuracyAll / matchCount) * 100),
+            accuracyMostRate: Math.round((totals.accuracyMost / matchCount) * 100),
+            accuracySomeRate: Math.round((totals.accuracySome / matchCount) * 100),
+            accuracyFewRate: Math.round((totals.accuracyFew / matchCount) * 100),
+            accuracyLittleRate: Math.round((totals.accuracyLittle / matchCount) * 100),
+            accuracyScore,
             startPositions,
             matchResults: matchResults.sort((a, b) => parseInt(a.matchNumber) - parseInt(b.matchNumber)),
             // Role statistics
@@ -568,6 +594,7 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
                     { key: 'avgScaledTotalFuel', label: 'Scaled Total Fuel', type: 'number', color: 'green', subtitle: 'TBA-adjusted scout avg' },
                     { key: 'fuelTotalOPR', label: 'Fuel Total OPR', type: 'number', color: 'purple', subtitle: 'alliance decomposition' },
                     { key: 'avgFuelPassed', label: 'Fuel Passed', type: 'number', color: 'blue', subtitle: 'avg per match' },
+                    { key: 'accuracyScore', label: 'Accuracy', type: 'percentage', color: 'green', subtitle: 'from matches with an accuracy selection' },
                     { key: 'coprHubTotalPoints', label: 'TBA COPR', type: 'number', color: 'green', subtitle: 'Hub Total Points' },
                 ],
             },
