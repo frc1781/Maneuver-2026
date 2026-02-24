@@ -25,6 +25,16 @@ const percent = (count: number, total: number): number =>
 
 const val = (n: number | unknown): number => (typeof n === 'number' ? n : 0);
 
+const START_POSITION_LABELS = ['Left Trench', 'Left Bump', 'Hub', 'Right Bump', 'Right Trench'];
+
+const getStartPositionIndex = (positionLabel?: string): number => {
+    if (!positionLabel) return -1;
+    const index = START_POSITION_LABELS.findIndex(
+        (label) => label.toLowerCase() === positionLabel.toLowerCase()
+    );
+    return index;
+};
+
 /**
  * Calculate all statistics for a single team from their match entries.
  * Returns a complete TeamStats object with all metrics.
@@ -93,6 +103,47 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
 
     // Starting positions
     const startPositions = calculateStartPositions(teamMatches, matchCount);
+    const startPositionPercentages = startPositions.reduce<Record<string, number>>((acc, pos) => {
+        const index = getStartPositionIndex(pos.position);
+        if (index >= 0) {
+            acc[`position${index}`] = pos.percentage;
+        }
+        return acc;
+    }, {});
+
+    const matchResults = teamMatches.map((match) => {
+        const autoPoints = scoringCalculations.calculateAutoPoints({ gameData: match.gameData } as any);
+        const teleopPoints = scoringCalculations.calculateTeleopPoints({ gameData: match.gameData } as any);
+        const endgamePoints = scoringCalculations.calculateEndgamePoints({ gameData: match.gameData } as any);
+        const startPositionLabel = typeof match.gameData?.auto?.startPositionLabel === 'string'
+            ? match.gameData.auto.startPositionLabel
+            : undefined;
+        const startPosition = typeof match.gameData?.auto?.startPosition === 'number'
+            ? match.gameData.auto.startPosition
+            : getStartPositionIndex(startPositionLabel);
+
+        const autoPath = Array.isArray(match.gameData?.auto?.autoPath)
+            ? match.gameData.auto.autoPath.filter((wp) => wp && wp.position)
+            : (Array.isArray(match.gameData?.auto?.actions)
+                ? match.gameData.auto.actions.filter((wp) => wp && wp.position)
+                : []);
+
+        return {
+            matchNumber: String(match.matchNumber),
+            alliance: match.allianceColor,
+            eventKey: match.eventKey || '',
+            teamNumber: match.teamNumber,
+            scoutName: match.scoutName,
+            totalPoints: autoPoints + teleopPoints + endgamePoints,
+            autoPoints,
+            teleopPoints,
+            endgamePoints,
+            startPosition,
+            autoFuel: val(match.gameData?.auto?.fuelScoredCount),
+            teleopFuel: val(match.gameData?.teleop?.fuelScoredCount),
+            autoPath,
+        };
+    }).sort((a, b) => parseInt(a.matchNumber) - parseInt(b.matchNumber));
 
     // Auto stuck tracking
     const autoTrenchStuckTotal = sum(teamMatches, m => val(m.gameData?.auto?.trenchStuckCount));
@@ -344,6 +395,8 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
         climbSuccessRate: percent(climbSuccessCount, matchCount),
         brokeDownCount,
         noShowCount,
+        startPositions: startPositionPercentages,
+        matchResults,
 
         // Role data
         primaryActiveRole,
@@ -519,5 +572,7 @@ function getEmptyStats(): Omit<TeamStats, 'teamNumber' | 'eventKey'> {
         teleopShotStationaryRate: 0,
         brokeDownCount: 0,
         noShowCount: 0,
+        startPositions: {},
+        matchResults: [],
     };
 }

@@ -10,10 +10,11 @@ import { Button } from "@/core/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/core/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/core/components/animate-ui/radix/tabs";
 import { Eye } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/core/components/ui/card";
+import { Card, CardContent } from "@/core/components/ui/card";
 import { ConfiguredStatsSections } from "@/core/components/team-stats";
 import type { TeamStats } from '@/core/types/team-stats';
 import { strategyAnalysis } from "@/game-template/analysis";
+import { AutoAnalysis } from "@/game-template/components/team-stats/AutoAnalysis";
 
 interface TeamStatsDialogProps {
     teamNumber: string | number;
@@ -51,6 +52,7 @@ export function TeamStatsDialog({
     const scoringStatSections = statSections.filter((section) => section.tab === 'scoring');
     const overviewRateSections = rateSections.filter((section) => section.tab === 'overview');
     const performanceRateSections = rateSections.filter((section) => section.tab === 'performance');
+    const startPositionConfig = strategyAnalysis.getStartPositionConfig();
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -80,7 +82,7 @@ export function TeamStatsDialog({
 
                         <div className="flex-1 overflow-y-auto px-0 mt-4">
                             <TabsContent value="overview" className="space-y-4 h-full mt-0">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                     <Card>
                                         <CardContent className="pt-4">
                                             <div className="text-xs uppercase tracking-wide text-muted-foreground">Matches Played</div>
@@ -91,6 +93,18 @@ export function TeamStatsDialog({
                                         <CardContent className="pt-4">
                                             <div className="text-xs uppercase tracking-wide text-muted-foreground">Avg Total Points</div>
                                             <div className="text-2xl font-semibold text-blue-600">{teamStats.overall?.avgTotalPoints ?? 0}</div>
+                                        </CardContent>
+                                    </Card>
+                                    <Card>
+                                        <CardContent className="pt-4">
+                                            <div className="text-xs uppercase tracking-wide text-muted-foreground">No Shows</div>
+                                            <div className="text-2xl font-semibold text-red-600">{typeof teamStats.noShowCount === 'number' ? teamStats.noShowCount : 0}</div>
+                                        </CardContent>
+                                    </Card>
+                                    <Card>
+                                        <CardContent className="pt-4">
+                                            <div className="text-xs uppercase tracking-wide text-muted-foreground">Breakdowns</div>
+                                            <div className="text-2xl font-semibold text-yellow-600">{typeof teamStats.brokeDownCount === 'number' ? teamStats.brokeDownCount : 0}</div>
                                         </CardContent>
                                     </Card>
                                 </div>
@@ -118,24 +132,12 @@ export function TeamStatsDialog({
                             </TabsContent>
 
                             <TabsContent value="auto" className="space-y-4 h-full mt-0">
-                                <Card>
-                                    <CardHeader className="pb-3">
-                                        <CardTitle className="text-base">Starting Positions</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="space-y-2">
-                                            {teamStats.auto?.startPositions?.map((pos) => (
-                                                <div key={pos.position} className="flex justify-between rounded border p-2">
-                                                    <span>{pos.position}</span>
-                                                    <span className="font-semibold">{pos.percentage}%</span>
-                                                </div>
-                                            ))}
-                                            {(!teamStats.auto?.startPositions || teamStats.auto.startPositions.length === 0) && (
-                                                <div className="text-muted-foreground text-sm">No position data available.</div>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
+                                <AutoAnalysis
+                                    teamStats={teamStats}
+                                    compareStats={null}
+                                    startPositionConfig={startPositionConfig}
+                                    showStartPositionMap={false}
+                                />
                             </TabsContent>
                         </div>
                     </Tabs>
