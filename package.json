@@ -5,7 +5,7 @@
   "description": "An offline-first, UX focused FRC strategy and scouting app for the 2026 FRC game, Rebuilt",
   "type": "module",
   "scripts": {
-    "dev": "netlify dev",
+    "dev": "vite",
     "dev:vite": "vite",
     "build": "tsc && vite build",
     "test": "vitest run",
