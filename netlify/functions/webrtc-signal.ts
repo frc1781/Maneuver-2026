@@ -48,6 +48,8 @@ setInterval(() => {
 }, ROOM_TIMEOUT);
 
 export const handler: Handler = async (event: HandlerEvent) => {
+   if (!event.path.startsWith("/.netlify/functions/webrtc-signal")) 
+    { return { statusCode: 404, body: "Not found" }; }
     // Enable CORS
     const headers = {
         'Access-Control-Allow-Origin': '*',
