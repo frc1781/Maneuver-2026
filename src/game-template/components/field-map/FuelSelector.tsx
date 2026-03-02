@@ -41,9 +41,10 @@ export function FuelSelector({
     isLarge = false,
     type = 'score',
     className,
-    robotCapacity,
+ //   robotCapacity,
 }: FuelSelectorProps) {
-    const fuelOptions = getFuelOptions(robotCapacity);
+    //const fuelOptions = getFuelOptions(robotCapacity);
+    const fuelOptions = getFuelOptions();
     
     const getTypeColor = () => {
         switch (type) {

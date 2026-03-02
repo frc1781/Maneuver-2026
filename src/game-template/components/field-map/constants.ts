@@ -123,35 +123,38 @@ export const ZONE_COLORS: Record<ZoneType, { red: string; blue: string; overlay:
  * Generate fuel options with dynamic fractional values based on robot capacity
  * @param capacity Robot fuel capacity from pit scouting (defaults to 20 if not available)
  */
-export function getFuelOptions(capacity: number = 20) {
-    return [
-        { label: '1', value: 1 },
-        { label: '3', value: 3 },
-        { label: '8', value: 8 },
-        { label: '10', value: 10 },
-        { label: '25', value: 25 },
-        { label: '50', value: 50 },
-        { label: '1/4', value: Math.round(capacity / 4) },
-        { label: '1/2', value: Math.round(capacity / 2) },
-        { label: '3/4', value: Math.round((capacity * 3) / 4) },
-        { label: 'Full', value: capacity },
-    ];
-    //     return [
+export function getFuelOptions
+    // (capacity: number = 20)
+    () {
+    // return [
     //     { label: '1', value: 1 },
     //     { label: '3', value: 3 },
-    //     { label: '5', value: 5 },
     //     { label: '8', value: 8 },
     //     { label: '10', value: 10 },
-    //     { label: '20', value: 20 },
     //     { label: '25', value: 25 },
-    //     { label: '30', value: 30 },
-    //     { label: '40', value: 40 },
     //     { label: '50', value: 50 },
+    //     { label: '1/4', value: Math.round(capacity / 4) },
+    //     { label: '1/2', value: Math.round(capacity / 2) },
+    //     { label: '3/4', value: Math.round((capacity * 3) / 4) },
+    //     { label: 'Full', value: capacity },
     // ];
+        return [
+        { label: '1', value: 1 },
+        { label: '3', value: 3 },
+        { label: '5', value: 5 },
+        { label: '8', value: 8 },
+        { label: '10', value: 10 },
+        { label: '20', value: 20 },
+        { label: '25', value: 25 },
+        { label: '30', value: 30 },
+        { label: '40', value: 40 },
+        { label: '50', value: 50 },
+    ];
 }
 
 // Default fuel options for when capacity is unknown
-export const FUEL_OPTIONS = getFuelOptions(20);
+//export const FUEL_OPTIONS = getFuelOptions(20);
+export const FUEL_OPTIONS = getFuelOptions();
 
 // =============================================================================
 // CLIMB LEVELS

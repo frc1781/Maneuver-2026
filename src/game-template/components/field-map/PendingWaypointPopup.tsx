@@ -61,7 +61,7 @@ export function PendingWaypointPopup({
     fuelHistory,
     isFieldRotated,
     alliance,
-    robotCapacity,
+   // robotCapacity,
     onFuelSelect,
     onFuelUndo,
     climbResult,
@@ -79,7 +79,8 @@ export function PendingWaypointPopup({
 }: PendingWaypointPopupProps) {
     const isClimb = pendingWaypoint.type === 'climb';
     const requiresClimbLocation = climbWithLocation || climbWithLevels;
-    const fuelOptions = getFuelOptions(robotCapacity);
+    //const fuelOptions = getFuelOptions(robotCapacity);
+    const fuelOptions = getFuelOptions();
     const [climbStartTimeSecRemaining, setClimbStartTimeSecRemaining] = useState<number | null>(
         pendingWaypoint.climbStartTimeSecRemaining ?? null
     );
