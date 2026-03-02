@@ -1,39 +1,11 @@
-//f
 import type { Handler } from '@netlify/functions';
 
-type Provider = 'tba' | 'nexus';
-
-const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
-const NEXUS_BASE_URL = 'https://frc.nexus/api/v1';
-
-const tbaAllowed = [
-  /^\/events\/\d+(?:\/simple)?$/,
-  /^\/event\/[a-z0-9]+\/matches(?:\/simple)?$/i,
-  /^\/event\/[a-z0-9]+\/coprs$/i,
-  /^\/event\/[a-z0-9]+\/teams\/keys$/i,
-  /^\/match\/[a-z0-9_]+$/i,
-];
-
-const nexusAllowed = [
-  /^\/events$/,
-  /^\/event\/[a-z0-9]+$/i,
-  /^\/event\/[a-z0-9]+\/pits$/i,
-  /^\/event\/[a-z0-9]+\/map$/i,
-];
-
-function isAllowedEndpoint(provider: Provider, endpoint: string): boolean {
-  const rules = provider === 'tba' ? tbaAllowed : nexusAllowed;
-  return rules.some(rule => rule.test(endpoint));
-}
-
-function getServerApiKey(provider: Provider): string | undefined {
-  if (provider === 'tba') {
-    return process.env.TBA_API_KEY || process.env.TBA_AUTH_KEY || process.env.VITE_TBA_API_KEY;
-  }
-  return process.env.NEXUS_API_KEY || process.env.NEXUS_AUTH_KEY || process.env.VITE_NEXUS_API_KEY;
-}
-
+// Prevent this function from intercepting the homepage or other routes
 export const handler: Handler = async (event) => {
+  if (event.path !== "/.netlify/functions/api-proxy") {
+    return { statusCode: 404, body: "Not found" };
+  }
+
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, X-Client-Api-Key',
@@ -52,6 +24,38 @@ export const handler: Handler = async (event) => {
   }
 
   try {
+    type Provider = 'tba' | 'nexus';
+
+    const TBA_BASE_URL = 'https://www.thebluealliance.com/api/v3';
+    const NEXUS_BASE_URL = 'https://frc.nexus/api/v1';
+
+    const tbaAllowed = [
+      /^\/events\/\d+(?:\/simple)?$/,
+      /^\/event\/[a-z0-9]+\/matches(?:\/simple)?$/i,
+      /^\/event\/[a-z0-9]+\/coprs$/i,
+      /^\/event\/[a-z0-9]+\/teams\/keys$/i,
+      /^\/match\/[a-z0-9_]+$/i,
+    ];
+
+    const nexusAllowed = [
+      /^\/events$/,
+      /^\/event\/[a-z0-9]+$/i,
+      /^\/event\/[a-z0-9]+\/pits$/i,
+      /^\/event\/[a-z0-9]+\/map$/i,
+    ];
+
+    function isAllowedEndpoint(provider: Provider, endpoint: string): boolean {
+      const rules = provider === 'tba' ? tbaAllowed : nexusAllowed;
+      return rules.some(rule => rule.test(endpoint));
+    }
+
+    function getServerApiKey(provider: Provider): string | undefined {
+      if (provider === 'tba') {
+        return process.env.TBA_API_KEY || process.env.TBA_AUTH_KEY || process.env.VITE_TBA_API_KEY;
+      }
+      return process.env.NEXUS_API_KEY || process.env.NEXUS_AUTH_KEY || process.env.VITE_NEXUS_API_KEY;
+    }
+
     const provider = (event.queryStringParameters?.provider || '').toLowerCase() as Provider;
     const endpoint = event.queryStringParameters?.endpoint || '';
 
@@ -71,7 +75,7 @@ export const handler: Handler = async (event) => {
         statusCode: 500,
         headers,
         body: JSON.stringify({
-          error: `${provider.toUpperCase()} API key not configured on server. Set ${provider === 'tba' ? 'TBA_API_KEY (preferred) or TBA_AUTH_KEY (or VITE_TBA_API_KEY for local dev)' : 'NEXUS_API_KEY (preferred) or NEXUS_AUTH_KEY (or VITE_NEXUS_API_KEY for local dev)'}`,
+          error: `${provider.toUpperCase()} API key not configured on server.`,
         }),
       };
     }
