@@ -427,9 +427,9 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             startPositions[`position${pos}`] = Math.round((count / matchCount) * 100);
         });
 
-        const avgAutoPoints = matchResults.reduce((sum, m) => sum + m.autoPoints, 0) / matchCount;
-        const avgTeleopPoints = matchResults.reduce((sum, m) => sum + m.teleopPoints, 0) / matchCount;
-        const avgEndgamePoints = matchResults.reduce((sum, m) => sum + m.endgamePoints, 0) / matchCount;
+        const avgAutoPoints = Math.round(matchResults.reduce((sum, m) => sum + m.autoPoints, 0) / matchCount);
+        const avgTeleopPoints = Math.round(matchResults.reduce((sum, m) => sum + m.teleopPoints, 0) / matchCount);
+        const avgEndgamePoints = Math.round(matchResults.reduce((sum, m) => sum + m.endgamePoints, 0) / matchCount);
         const climbSuccessCount = totals.climbL1 + totals.climbL2 + totals.climbL3;
         const autoClimbLocationAttemptCount = totals.autoClimbFromSide + totals.autoClimbFromMiddle;
         const autoClimbAttemptCount = Math.max(totals.autoClimb, autoClimbLocationAttemptCount);
