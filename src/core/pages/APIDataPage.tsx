@@ -27,6 +27,11 @@ import { clearEventData, hasStoredEventData, setCurrentEvent, getCurrentEvent, i
 import { processPredictionRewardsForMatches } from '@/core/lib/predictionRewards';
 import { fetchAndCacheEventCOPRs } from '@/core/lib/tba/coprUtils';
 import { extractTeamsFromMatches, fetchAndCacheEventStatboticsEPA, fetchEventTeamNumbersFromTBA } from '@/core/lib/statbotics/epaUtils';
+import {
+  correctClimbDataWithValidation,
+  previewClimbCorrectionsWithValidation,
+  type ClimbCorrectionPreview,
+} from '@/game-template/validationCorrections';
 import { toast } from 'sonner';
 
 interface ProcessingResult {
@@ -69,6 +74,9 @@ const APIDataPage: React.FC = () => {
   const [debugNexusLoading, setDebugNexusLoading] = useState(false);
   const [nexusEvents, setNexusEvents] = useState<Record<string, unknown> | null>(null);
   const [statboticsRefreshKey, setStatboticsRefreshKey] = useState(0);
+  const [correctingClimbData, setCorrectingClimbData] = useState(false);
+  const [previewingClimbCorrections, setPreviewingClimbCorrections] = useState(false);
+  const [climbCorrectionPreview, setClimbCorrectionPreview] = useState<ClimbCorrectionPreview | null>(null);
 
   // Use the TBA data hook
   const {
@@ -334,6 +342,69 @@ const APIDataPage: React.FC = () => {
     }
   };
 
+  const handleCorrectClimbData = async () => {
+    if (!eventKey.trim()) {
+      toast.error('Please enter an event key');
+      return;
+    }
+
+    if (validationMatches.length === 0) {
+      toast.error('Load Match Validation Data first');
+      return;
+    }
+
+    setCorrectingClimbData(true);
+    try {
+      const summary = await correctClimbDataWithValidation(eventKey, validationMatches, 'api-data-climb-correction');
+      setClimbCorrectionPreview(null);
+
+      if (summary.correctedEntries > 0) {
+        toast.success(
+          `Corrected ${summary.correctedEntries} climb entries (${summary.skippedMissingEntries} missing entries, ${summary.skippedNoTBAClimbData} with no climb data)`
+        );
+        toast.info('Open Match Validation and run Validate Event to refresh discrepancy results.');
+      } else {
+        toast.info(
+          `No climb corrections needed (${summary.skippedMissingEntries} missing entries, ${summary.skippedNoTBAClimbData} with no climb data)`
+        );
+      }
+    } catch (error) {
+      console.error('Error correcting climb data with validation:', error);
+      toast.error('Failed to correct climb data');
+    } finally {
+      setCorrectingClimbData(false);
+    }
+  };
+
+  const handlePreviewClimbCorrections = async () => {
+    if (!eventKey.trim()) {
+      toast.error('Please enter an event key');
+      return;
+    }
+
+    if (validationMatches.length === 0) {
+      toast.error('Load Match Validation Data first');
+      return;
+    }
+
+    setPreviewingClimbCorrections(true);
+    try {
+      const preview = await previewClimbCorrectionsWithValidation(eventKey, validationMatches);
+      setClimbCorrectionPreview(preview);
+
+      if (preview.candidates.length > 0) {
+        toast.info(`Found ${preview.candidates.length} climb corrections to review`);
+      } else {
+        toast.info('No climb corrections found');
+      }
+    } catch (error) {
+      console.error('Error previewing climb corrections:', error);
+      toast.error('Failed to preview climb corrections');
+    } finally {
+      setPreviewingClimbCorrections(false);
+    }
+  };
+
   useEffect(() => {
     if (dataType !== 'match-results') return;
     if (!eventKey.trim()) return;
@@ -483,6 +554,11 @@ const APIDataPage: React.FC = () => {
             eventKey={eventKey}
             isOnline={validationOnline}
             cacheExpired={validationCacheExpired}
+            climbCorrectionPreview={climbCorrectionPreview}
+            onPreviewClimbCorrections={handlePreviewClimbCorrections}
+            previewingClimbCorrections={previewingClimbCorrections}
+            onCorrectClimbData={handleCorrectClimbData}
+            correctingClimbData={correctingClimbData}
             onClearCache={() => clearValidationCache(eventKey)}
           />
           <StatboticsEPADataDisplay eventKey={eventKey} refreshKey={statboticsRefreshKey} />
