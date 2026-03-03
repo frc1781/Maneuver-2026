@@ -882,12 +882,12 @@ export const analysis2025: StrategyAnalysis = {
     }
     
     // Calculate averages across all matches
-    const avgAutoPoints = entries.reduce((sum, e) => 
-      sum + scoring2025.calculateAutoPoints(e), 0) / entries.length;
-    const avgTeleopPoints = entries.reduce((sum, e) => 
-      sum + scoring2025.calculateTeleopPoints(e), 0) / entries.length;
-    const avgEndgamePoints = entries.reduce((sum, e) => 
-      sum + scoring2025.calculateEndgamePoints(e), 0) / entries.length;
+    const avgAutoPoints = Math.round(entries.reduce((sum, e) => 
+      sum + scoring2025.calculateAutoPoints(e), 0) / entries.length);
+    const avgTeleopPoints = Math.round(entries.reduce((sum, e) => 
+      sum + scoring2025.calculateTeleopPoints(e), 0) / entries.length);
+    const avgEndgamePoints = Math.round(entries.reduce((sum, e) => 
+      sum + scoring2025.calculateEndgamePoints(e), 0) / entries.length);
     
     // 2025-specific stats
     const avgCoralL4Count = entries.reduce((sum, e) => 
