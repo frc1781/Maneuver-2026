@@ -466,7 +466,7 @@ export const MatchValidationPage: React.FC = () => {
               const targetMatches = 6;
               const matchPenalty = Math.max(0, (targetMatches - matchesPlayed) / targetMatches);
 
-              const gap = Math.abs(totalFuelOPR - scaledTotalAvg);
+              const gap = Math.abs(Math.round(totalFuelOPR - scaledTotalAvg));
               const scaleBase = Math.max(1, Math.abs(totalFuelOPR), Math.abs(scaledTotalAvg));
               const gapPenalty = hasScaledFuelData
                 ? Math.max(0, Math.min(1, gap / scaleBase))
