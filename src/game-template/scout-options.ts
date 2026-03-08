@@ -5,6 +5,7 @@ export const SCOUT_OPTIONS_STORAGE_KEY = "scoutOptions";
 export const GAME_SCOUT_OPTION_KEYS = {
   disableHubFuelScoringPopup: "disableHubFuelScoringPopup",
   disablePassingPopup: "disablePassingPopup",
+  disableDefensePopup: "disableDefensePopup",
   disableAutoPathDrawingTapOnly: "disableAutoPathDrawingTapOnly",
   disableTeleopPathDrawingTapOnly: "disableTeleopPathDrawingTapOnly",
 } as const;
@@ -16,6 +17,7 @@ const LEGACY_SCOUT_OPTION_KEYS = {
 export const GAME_SCOUT_OPTION_DEFAULTS: ScoutOptionsState = {
   [GAME_SCOUT_OPTION_KEYS.disableHubFuelScoringPopup]: false,
   [GAME_SCOUT_OPTION_KEYS.disablePassingPopup]: false,
+  [GAME_SCOUT_OPTION_KEYS.disableDefensePopup]: false,
   [GAME_SCOUT_OPTION_KEYS.disableAutoPathDrawingTapOnly]: false,
   [GAME_SCOUT_OPTION_KEYS.disableTeleopPathDrawingTapOnly]: false,
 };

@@ -33,6 +33,7 @@ interface UseCanvasSetupProps {
   getTeamSpots?: (teamNumber: number | null, stageId: StrategyStageId) => TeamStageSpots;
   selectedAutoRoutinesBySlot?: (StrategyAutoRoutine | null)[];
   isolatedAutoSlot?: number | null;
+  autoReplayProgress?: number;
   onCanvasReady?: () => void;
   onDimensionsChange?: (dimensions: { width: number; height: number }) => void;
 }
@@ -53,6 +54,7 @@ export const useCanvasSetup = ({
   getTeamSpots,
   selectedAutoRoutinesBySlot = [],
   isolatedAutoSlot = null,
+  autoReplayProgress,
   onCanvasReady,
   onDimensionsChange
 }: UseCanvasSetupProps) => {
@@ -166,7 +168,8 @@ export const useCanvasSetup = ({
           selectedTeams,
           currentStageId as StrategyStageId,
           selectedAutoRoutinesBySlot,
-          isolatedAutoSlot
+          isolatedAutoSlot,
+          autoReplayProgress,
         );
 
         // LAYER 3: Load saved drawings or start fresh
@@ -215,9 +218,10 @@ export const useCanvasSetup = ({
       selectedTeams,
       currentStageId as StrategyStageId,
       selectedAutoRoutinesBySlot,
-      isolatedAutoSlot
+      isolatedAutoSlot,
+      autoReplayProgress,
     );
-  }, [selectedTeams, currentStageId, teamSlotSpotVisibility, getTeamSpots, selectedAutoRoutinesBySlot, isolatedAutoSlot, overlayCanvasRef]);
+  }, [selectedTeams, currentStageId, teamSlotSpotVisibility, getTeamSpots, selectedAutoRoutinesBySlot, isolatedAutoSlot, autoReplayProgress, overlayCanvasRef]);
 
   useEffect(() => {
     setupCanvas();

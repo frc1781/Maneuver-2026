@@ -3,6 +3,7 @@ import { Badge } from "@/core/components/ui/badge";
 import { ProgressCard } from "@/core/components/team-stats/ProgressCard";
 import { MatchStatsDialog } from "./MatchStatsDialog";
 import { MatchProgressionChart } from "@/core/components/team-stats/MatchProgressionChart";
+import { DefenseAgainstTeamAnalysis } from "./DefenseAgainstTeamAnalysis";
 import type { TeamStats } from "@/core/types/team-stats";
 import type { RateSectionDefinition, MatchBadgeDefinition } from "@/types/team-stats-display";
 
@@ -11,13 +12,17 @@ interface PerformanceAnalysisProps {
     compareStats: TeamStats | null;
     rateSections: RateSectionDefinition[];
     matchBadges: MatchBadgeDefinition[];
+    selectedTeam: string;
+    selectedEvent: string;
 }
 
 export function PerformanceAnalysis({
     teamStats,
     compareStats,
     rateSections,
-    matchBadges
+    matchBadges,
+    selectedTeam,
+    selectedEvent,
 }: PerformanceAnalysisProps) {
     if (teamStats.matchesPlayed === 0) {
         return (
@@ -187,6 +192,12 @@ export function PerformanceAnalysis({
                 teamNumber={teamStats.teamNumber}
                 compareTeamNumber={compareStats?.teamNumber}
             />
+
+            <DefenseAgainstTeamAnalysis
+                teamNumber={selectedTeam}
+                selectedEvent={selectedEvent}
+            />
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader>

@@ -9,7 +9,8 @@ import {
   DataStatusCard,
   DataOperationsCard,
   MatchValidationDataDisplay,
-  PitDataDisplay
+  PitDataDisplay,
+  StatboticsEPADataDisplay,
 } from '@/core/components/tba/DataManagement';
 import {
   DataTypeSelector,
@@ -24,6 +25,13 @@ import { DataAttribution } from '@/core/components/DataAttribution';
 import { getNexusPitData, storePitData, getStoredPitData, getNexusEvents, extractAndStoreTeamsFromPitAddresses, type NexusPitAddresses, type NexusPitMap } from '@/core/lib/tba';
 import { clearEventData, hasStoredEventData, setCurrentEvent, getCurrentEvent, isDifferentEvent } from '@/core/lib/tba';
 import { processPredictionRewardsForMatches } from '@/core/lib/predictionRewards';
+import { fetchAndCacheEventCOPRs } from '@/core/lib/tba/coprUtils';
+import { extractTeamsFromMatches, fetchAndCacheEventStatboticsEPA, fetchEventTeamNumbersFromTBA } from '@/core/lib/statbotics/epaUtils';
+import {
+  correctClimbDataWithValidation,
+  previewClimbCorrectionsWithValidation,
+  type ClimbCorrectionPreview,
+} from '@/game-template/validationCorrections';
 import { toast } from 'sonner';
 
 interface ProcessingResult {
@@ -65,6 +73,10 @@ const APIDataPage: React.FC = () => {
   // Debug Nexus state
   const [debugNexusLoading, setDebugNexusLoading] = useState(false);
   const [nexusEvents, setNexusEvents] = useState<Record<string, unknown> | null>(null);
+  const [statboticsRefreshKey, setStatboticsRefreshKey] = useState(0);
+  const [correctingClimbData, setCorrectingClimbData] = useState(false);
+  const [previewingClimbCorrections, setPreviewingClimbCorrections] = useState(false);
+  const [climbCorrectionPreview, setClimbCorrectionPreview] = useState<ClimbCorrectionPreview | null>(null);
 
   // Use the TBA data hook
   const {
@@ -163,6 +175,7 @@ const APIDataPage: React.FC = () => {
 
       // Update current event in localStorage after successful load
       setCurrentEvent(eventKey.trim());
+      setStoredDataExists(hasStoredEventData(eventKey.trim()));
     });
   };
 
@@ -182,9 +195,53 @@ const APIDataPage: React.FC = () => {
     }
 
     executeWithConfirmation(async () => {
-      await fetchValidationMatches(eventKey, apiKey, false);
+      const validationData = await fetchValidationMatches(eventKey, apiKey, false);
+
+      try {
+        await fetchAndCacheEventCOPRs(eventKey, apiKey);
+      } catch (coprError) {
+        console.warn(`[API Data] Failed to refresh COPRs for ${eventKey}:`, coprError);
+      }
+
+      try {
+        let eventTeams = await fetchEventTeamNumbersFromTBA(eventKey, apiKey);
+        if (eventTeams.length === 0) {
+          eventTeams = extractTeamsFromMatches(validationData);
+        }
+        await fetchAndCacheEventStatboticsEPA(eventKey, eventTeams);
+        setStatboticsRefreshKey(Date.now());
+      } catch (statboticsError) {
+        console.warn(`[API Data] Failed to refresh Statbotics EPA for ${eventKey}:`, statboticsError);
+      }
 
       // Update current event in localStorage after successful load
+      setCurrentEvent(eventKey.trim());
+      setStoredDataExists(hasStoredEventData(eventKey.trim()));
+    });
+  };
+
+  const handleLoadStatboticsEPA = async () => {
+    if (!eventKey.trim()) {
+      toast.error('Please enter an event key');
+      return;
+    }
+
+    executeWithConfirmation(async () => {
+      const validationData = await fetchValidationMatches(eventKey, apiKey, false);
+
+      try {
+        let eventTeams = await fetchEventTeamNumbersFromTBA(eventKey, apiKey);
+        if (eventTeams.length === 0) {
+          eventTeams = extractTeamsFromMatches(validationData);
+        }
+        await fetchAndCacheEventStatboticsEPA(eventKey, eventTeams);
+        setStatboticsRefreshKey(Date.now());
+        toast.success(`Loaded Statbotics EPA for ${eventTeams.length} teams`);
+      } catch (statboticsError) {
+        console.warn(`[API Data] Failed to refresh Statbotics EPA for ${eventKey}:`, statboticsError);
+        toast.error('Failed to load Statbotics EPA data');
+      }
+
       setCurrentEvent(eventKey.trim());
     });
   };
@@ -285,6 +342,69 @@ const APIDataPage: React.FC = () => {
     }
   };
 
+  const handleCorrectClimbData = async () => {
+    if (!eventKey.trim()) {
+      toast.error('Please enter an event key');
+      return;
+    }
+
+    if (validationMatches.length === 0) {
+      toast.error('Load Match Validation Data first');
+      return;
+    }
+
+    setCorrectingClimbData(true);
+    try {
+      const summary = await correctClimbDataWithValidation(eventKey, validationMatches, 'api-data-climb-correction');
+      setClimbCorrectionPreview(null);
+
+      if (summary.correctedEntries > 0) {
+        toast.success(
+          `Corrected ${summary.correctedEntries} climb entries (${summary.skippedMissingEntries} missing entries, ${summary.skippedNoTBAClimbData} with no climb data)`
+        );
+        toast.info('Open Match Validation and run Validate Event to refresh discrepancy results.');
+      } else {
+        toast.info(
+          `No climb corrections needed (${summary.skippedMissingEntries} missing entries, ${summary.skippedNoTBAClimbData} with no climb data)`
+        );
+      }
+    } catch (error) {
+      console.error('Error correcting climb data with validation:', error);
+      toast.error('Failed to correct climb data');
+    } finally {
+      setCorrectingClimbData(false);
+    }
+  };
+
+  const handlePreviewClimbCorrections = async () => {
+    if (!eventKey.trim()) {
+      toast.error('Please enter an event key');
+      return;
+    }
+
+    if (validationMatches.length === 0) {
+      toast.error('Load Match Validation Data first');
+      return;
+    }
+
+    setPreviewingClimbCorrections(true);
+    try {
+      const preview = await previewClimbCorrectionsWithValidation(eventKey, validationMatches);
+      setClimbCorrectionPreview(preview);
+
+      if (preview.candidates.length > 0) {
+        toast.info(`Found ${preview.candidates.length} climb corrections to review`);
+      } else {
+        toast.info('No climb corrections found');
+      }
+    } catch (error) {
+      console.error('Error previewing climb corrections:', error);
+      toast.error('Failed to preview climb corrections');
+    } finally {
+      setPreviewingClimbCorrections(false);
+    }
+  };
+
   useEffect(() => {
     if (dataType !== 'match-results') return;
     if (!eventKey.trim()) return;
@@ -352,16 +472,16 @@ const APIDataPage: React.FC = () => {
           <div>
             <h1 className="text-3xl font-bold">API Data</h1>
             <p className="text-muted-foreground">
-              Import match schedules, results, and team lists from The Blue Alliance or pit information from Nexus for FRC.
+              Import match schedules, results, team lists, and validation metrics from TBA/Statbotics, plus pit information from Nexus.
             </p>
           </div>
           {/* Attribution for TBA and Nexus APIs */}
           <div className="hidden md:block">
-            <DataAttribution sources={['tba', 'nexus']} variant="full" />
+            <DataAttribution sources={['tba', 'statbotics', 'nexus']} variant="full" />
           </div>
         </div>
         <div className="md:hidden mt-2">
-          <DataAttribution sources={['tba', 'nexus']} variant="compact" />
+          <DataAttribution sources={['tba', 'statbotics', 'nexus']} variant="compact" />
         </div>
       </div>
 
@@ -405,6 +525,7 @@ const APIDataPage: React.FC = () => {
         onLoadMatchData={handleLoadMatchData}
         onLoadMatchResults={handleLoadMatchResults}
         onLoadValidationData={handleLoadValidationData}
+        onLoadStatboticsEPA={handleLoadStatboticsEPA}
         onLoadEventTeams={handleLoadEventTeams}
         onLoadPitData={handleLoadPitData}
         onDebugNexus={handleDebugNexus}
@@ -426,14 +547,26 @@ const APIDataPage: React.FC = () => {
 
       {/* Match Validation Data Display */}
       {dataType === 'match-validation-data' && (
-        <MatchValidationDataDisplay
-          matches={validationMatches}
-          cacheMetadata={cacheMetadata}
-          eventKey={eventKey}
-          isOnline={validationOnline}
-          cacheExpired={validationCacheExpired}
-          onClearCache={() => clearValidationCache(eventKey)}
-        />
+        <div className="space-y-6">
+          <MatchValidationDataDisplay
+            matches={validationMatches}
+            cacheMetadata={cacheMetadata}
+            eventKey={eventKey}
+            isOnline={validationOnline}
+            cacheExpired={validationCacheExpired}
+            climbCorrectionPreview={climbCorrectionPreview}
+            onPreviewClimbCorrections={handlePreviewClimbCorrections}
+            previewingClimbCorrections={previewingClimbCorrections}
+            onCorrectClimbData={handleCorrectClimbData}
+            correctingClimbData={correctingClimbData}
+            onClearCache={() => clearValidationCache(eventKey)}
+          />
+          <StatboticsEPADataDisplay eventKey={eventKey} refreshKey={statboticsRefreshKey} />
+        </div>
+      )}
+
+      {dataType === 'statbotics-epa' && (
+        <StatboticsEPADataDisplay eventKey={eventKey} refreshKey={statboticsRefreshKey} />
       )}
 
       {/* Event Teams Display */}

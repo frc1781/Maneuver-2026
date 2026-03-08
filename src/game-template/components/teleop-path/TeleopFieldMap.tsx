@@ -24,6 +24,7 @@ import fieldImage from '@/game-template/assets/2026-field.png';
 
 // Import shared field-map components
 import {
+    type DefenseEffectiveness,
     type PathWaypoint,
     type ZoneType,
 
@@ -37,6 +38,7 @@ import {
     ZoneOverlay,
     PendingWaypointPopup,
     ShotTypePopup,
+    DefensePopup,
 } from '../field-map';
 
 // Context hooks
@@ -175,6 +177,8 @@ function TeleopFieldMapContent() {
         effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableHubFuelScoringPopup] === true;
     const disablePassingPopup =
         effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disablePassingPopup] === true;
+    const disableDefensePopup =
+        effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableDefensePopup] === true;
     const disablePathDrawingTapOnly =
         effectiveScoutOptions[GAME_SCOUT_OPTION_KEYS.disableTeleopPathDrawingTapOnly] === true;
 
@@ -184,6 +188,13 @@ function TeleopFieldMapContent() {
     const [actionLogOpen, setActionLogOpen] = useState(false);
     const [pendingShotTypeWaypoint, setPendingShotTypeWaypoint] = useState<PathWaypoint | null>(null);
     const [focusClimbTimeInputOnOpen, setFocusClimbTimeInputOnOpen] = useState(false);
+    const [isDefenseTargetDialogOpen, setIsDefenseTargetDialogOpen] = useState(false);
+    const [isDefenseEffectivenessDialogOpen, setIsDefenseEffectivenessDialogOpen] = useState(false);
+    const [pendingDefenseZone, setPendingDefenseZone] = useState<ZoneType | null>(null);
+    const [opponentTeamOptions, setOpponentTeamOptions] = useState<string[]>([]);
+    const [selectedDefenseTeam, setSelectedDefenseTeam] = useState<string>('');
+    const [customDefenseTeamInput, setCustomDefenseTeamInput] = useState('');
+    const [selectedDefenseEffectiveness, setSelectedDefenseEffectiveness] = useState<DefenseEffectiveness | null>(null);
 
     // Broken down state - persisted with localStorage
     const [brokenDownStart, setBrokenDownStart] = useState<number | null>(() => {
@@ -261,6 +272,109 @@ function TeleopFieldMapContent() {
     // Defense and steal counted from actions array like everything else
     const totalDefense = actions.filter(a => a.type === 'defense').length;
     const totalSteal = actions.filter(a => a.type === 'steal').length;
+
+    const getOpponentTeamsFromSchedule = useCallback((): string[] => {
+        try {
+            const matchDataStr = localStorage.getItem('matchData');
+            const matchData = matchDataStr ? JSON.parse(matchDataStr) : [];
+
+            if (!Array.isArray(matchData) || matchData.length === 0) return [];
+
+            const parsedMatchNumber = Number.parseInt(String(matchNumber), 10);
+            if (!Number.isFinite(parsedMatchNumber) || parsedMatchNumber <= 0) return [];
+
+            const currentMatch = matchData[parsedMatchNumber - 1];
+            if (!currentMatch || typeof currentMatch !== 'object') return [];
+
+            const opponentAllianceKey = alliance === 'red' ? 'blueAlliance' : 'redAlliance';
+            const rawTeams = (currentMatch as Record<string, unknown>)[opponentAllianceKey];
+            if (!Array.isArray(rawTeams)) return [];
+
+            return rawTeams
+                .map((team) => String(team ?? '').trim())
+                .filter((team) => /^\d+$/.test(team))
+                .slice(0, 3);
+        } catch {
+            return [];
+        }
+    }, [alliance, matchNumber]);
+
+    const resetDefenseDialogState = useCallback(() => {
+        setIsDefenseTargetDialogOpen(false);
+        setIsDefenseEffectivenessDialogOpen(false);
+        setPendingDefenseZone(null);
+        setOpponentTeamOptions([]);
+        setSelectedDefenseTeam('');
+        setCustomDefenseTeamInput('');
+        setSelectedDefenseEffectiveness(null);
+    }, []);
+
+    const addDefenseAction = useCallback((zone: ZoneType, details?: {
+        defendedTeamNumber?: number;
+        defenseTargetSource?: 'schedule' | 'custom';
+        defenseEffectiveness?: DefenseEffectiveness;
+    }) => {
+        onAddAction({
+            id: generateId(),
+            type: 'defense',
+            timestamp: Date.now(),
+            zone,
+            ...details,
+        } as any);
+    }, [generateId, onAddAction]);
+
+    const startDefenseFlow = useCallback((zone: ZoneType) => {
+        if (disableDefensePopup) {
+            addDefenseAction(zone);
+            return;
+        }
+
+        const opponentTeams = getOpponentTeamsFromSchedule();
+        setPendingDefenseZone(zone);
+        setOpponentTeamOptions(opponentTeams);
+        setSelectedDefenseTeam(opponentTeams[0] || '');
+        setCustomDefenseTeamInput('');
+        setSelectedDefenseEffectiveness(null);
+        setIsDefenseEffectivenessDialogOpen(false);
+        setIsDefenseTargetDialogOpen(true);
+    }, [addDefenseAction, disableDefensePopup, getOpponentTeamsFromSchedule]);
+
+    const getSelectedDefenseTeamNumber = useCallback((): number | null => {
+        const rawValue = customDefenseTeamInput.trim() !== '' ? customDefenseTeamInput : selectedDefenseTeam;
+        const sanitized = rawValue.trim();
+        if (!/^\d+$/.test(sanitized)) return null;
+
+        const parsed = Number.parseInt(sanitized, 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    }, [customDefenseTeamInput, selectedDefenseTeam]);
+
+    const handleDefenseTargetNext = useCallback(() => {
+        const teamNumber = getSelectedDefenseTeamNumber();
+        if (!teamNumber) return;
+
+        setIsDefenseTargetDialogOpen(false);
+        setIsDefenseEffectivenessDialogOpen(true);
+    }, [getSelectedDefenseTeamNumber]);
+
+    const handleDefenseConfirm = useCallback(() => {
+        const teamNumber = getSelectedDefenseTeamNumber();
+        if (!teamNumber || !pendingDefenseZone || !selectedDefenseEffectiveness) return;
+
+        addDefenseAction(pendingDefenseZone, {
+            defendedTeamNumber: teamNumber,
+            defenseTargetSource: customDefenseTeamInput.trim() !== '' ? 'custom' : 'schedule',
+            defenseEffectiveness: selectedDefenseEffectiveness,
+        });
+
+        resetDefenseDialogState();
+    }, [
+        addDefenseAction,
+        getSelectedDefenseTeamNumber,
+        pendingDefenseZone,
+        resetDefenseDialogState,
+        customDefenseTeamInput,
+        selectedDefenseEffectiveness,
+    ]);
 
     // ==========================================================================
     // HANDLERS
@@ -469,14 +583,13 @@ function TeleopFieldMapContent() {
                 setClimbResult('success');
                 break;
             case 'defense_alliance':
+                startDefenseFlow('allianceZone');
+                break;
             case 'defense_neutral':
+                startDefenseFlow('neutralZone');
+                break;
             case 'defense_opponent':
-                // Defense - create minimal action (no waypoint needed)
-                onAddAction({
-                    id: generateId(),
-                    type: 'defense',
-                    timestamp: Date.now(),
-                } as any);
+                startDefenseFlow('opponentZone');
                 break;
             case 'pass_opponent':
                 // Pass from opponent zone - same behavior as regular pass
@@ -499,6 +612,7 @@ function TeleopFieldMapContent() {
         onAddAction,
         pendingShotTypeWaypoint,
         pendingWaypoint,
+        startDefenseFlow,
         setClimbLevel,
         setClimbLocation,
         setClimbResult,
@@ -643,10 +757,13 @@ function TeleopFieldMapContent() {
             const isEditableTarget =
                 !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
 
-            if (isEditableTarget) return;
-
             if (key === 'escape') {
                 event.preventDefault();
+                if (isDefenseEffectivenessDialogOpen || isDefenseTargetDialogOpen) {
+                    resetDefenseDialogState();
+                    return;
+                }
+
                 if (pendingShotTypeWaypoint) {
                     setPendingShotTypeWaypoint(null);
                     setPendingWaypoint(null);
@@ -682,6 +799,59 @@ function TeleopFieldMapContent() {
                 }
                 return;
             }
+
+            if (isDefenseTargetDialogOpen) {
+                if (!isEditableTarget && (key === 'a' || key === 's' || key === 'd')) {
+                    const index = key === 'a' ? 0 : key === 's' ? 1 : 2;
+                    const team = opponentTeamOptions[index];
+                    if (team) {
+                        event.preventDefault();
+                        setSelectedDefenseTeam(team);
+                        setCustomDefenseTeamInput('');
+                    }
+                    return;
+                }
+
+                if (!isEditableTarget && (key === 'n' || key === 'enter' || key === ' ' || key === 'spacebar')) {
+                    if (!getSelectedDefenseTeamNumber()) return;
+                    event.preventDefault();
+                    handleDefenseTargetNext();
+                    return;
+                }
+
+                return;
+            }
+
+            if (isDefenseEffectivenessDialogOpen) {
+                if (key === 'a') {
+                    event.preventDefault();
+                    setSelectedDefenseEffectiveness('very');
+                    return;
+                }
+
+                if (key === 's') {
+                    event.preventDefault();
+                    setSelectedDefenseEffectiveness('somewhat');
+                    return;
+                }
+
+                if (key === 'd') {
+                    event.preventDefault();
+                    setSelectedDefenseEffectiveness('not');
+                    return;
+                }
+
+                if (key === 'enter' || key === ' ' || key === 'spacebar') {
+                    if (!selectedDefenseEffectiveness) return;
+                    event.preventDefault();
+                    handleDefenseConfirm();
+                    return;
+                }
+
+                return;
+            }
+
+            if (isEditableTarget) return;
 
             if (key === 'c') {
                 event.preventDefault();
@@ -868,11 +1038,7 @@ function TeleopFieldMapContent() {
             if (key === 'd') {
                 if (!canDefenseFromZone) return;
                 event.preventDefault();
-                onAddAction({
-                    id: generateId(),
-                    type: 'defense',
-                    timestamp: Date.now(),
-                } as any);
+                startDefenseFlow(activeZone || 'neutralZone');
                 return;
             }
 
@@ -885,16 +1051,23 @@ function TeleopFieldMapContent() {
         brokenDownStart,
         generateId,
         handleElementClick,
+        handleDefenseConfirm,
+        handleDefenseTargetNext,
         handleProceedToEndgame,
+        getSelectedDefenseTeamNumber,
+        isDefenseEffectivenessDialogOpen,
+        isDefenseTargetDialogOpen,
         isFieldRotated,
         isAnyStuck,
         isBrokenDown,
         isSelectingPass,
         isSelectingScore,
+        opponentTeamOptions,
         onAddAction,
         onUndo,
         pendingShotTypeWaypoint,
         pendingWaypoint,
+        resetDefenseDialogState,
         resetDrawing,
         setAccumulatedFuel,
         setActiveZone,
@@ -902,11 +1075,16 @@ function TeleopFieldMapContent() {
         setClimbLevel,
         setClimbLocation,
         setClimbResult,
+        setCustomDefenseTeamInput,
+        setSelectedDefenseEffectiveness,
+        setSelectedDefenseTeam,
         setFuelHistory,
         setFocusClimbTimeInputOnOpen,
         setIsSelectingPass,
         setIsSelectingScore,
         setPendingWaypoint,
+        selectedDefenseEffectiveness,
+        startDefenseFlow,
         setTotalBrokenDownTime,
         totalBrokenDownTime,
         visibleElements,
@@ -1167,6 +1345,27 @@ function TeleopFieldMapContent() {
                             }}
                         />
                     )}
+
+                    <DefensePopup
+                        isFieldRotated={isFieldRotated}
+                        isTargetOpen={isDefenseTargetDialogOpen}
+                        isEffectivenessOpen={isDefenseEffectivenessDialogOpen}
+                        opponentTeamOptions={opponentTeamOptions}
+                        selectedDefenseTeam={selectedDefenseTeam}
+                        customDefenseTeamInput={customDefenseTeamInput}
+                        selectedDefenseEffectiveness={selectedDefenseEffectiveness}
+                        onSelectTeam={(team) => {
+                            setSelectedDefenseTeam(team);
+                            setCustomDefenseTeamInput('');
+                        }}
+                        onCustomDefenseTeamInputChange={setCustomDefenseTeamInput}
+                        onSelectEffectiveness={setSelectedDefenseEffectiveness}
+                        onCancel={resetDefenseDialogState}
+                        onNext={handleDefenseTargetNext}
+                        onConfirm={handleDefenseConfirm}
+                        canProceed={!!getSelectedDefenseTeamNumber()}
+                        canConfirm={!!selectedDefenseEffectiveness}
+                    />
 
                     {/* Post-Climb Transition Overlay */}
                     {showPostClimbProceed && onProceed && (

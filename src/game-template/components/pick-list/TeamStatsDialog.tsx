@@ -15,6 +15,7 @@ import { ConfiguredStatsSections } from "@/core/components/team-stats";
 import type { TeamStats } from '@/core/types/team-stats';
 import { strategyAnalysis } from "@/game-template/analysis";
 import { AutoAnalysis } from "@/game-template/components/team-stats/AutoAnalysis";
+import { DefenseAgainstTeamAnalysis } from "@/game-template/components/team-stats/DefenseAgainstTeamAnalysis";
 
 interface TeamStatsDialogProps {
     teamNumber: string | number;
@@ -126,6 +127,10 @@ export function TeamStatsDialog({
                             </TabsContent>
 
                             <TabsContent value="performance" className="space-y-4 h-full mt-0">
+                                <DefenseAgainstTeamAnalysis
+                                    teamNumber={String(teamNumber)}
+                                    selectedEvent={teamStats.eventKey}
+                                />
                                 <ConfiguredStatsSections
                                     teamStats={teamStats}
                                     rateSections={performanceRateSections}

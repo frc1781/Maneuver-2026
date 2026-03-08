@@ -216,35 +216,20 @@ function AutoFieldMapContent({
         setIsSelectingCollect,
     } = useAutoScoring();
 
-    const autoTraversalHotkeyMap: Record<string, string> = isFieldRotated
-        ? {
-            trench1: '1',
-            bump1: '2',
-            bump2: '3',
-            trench2: '4',
-        }
-        : {
-            trench1: '4',
-            bump1: '3',
-            bump2: '2',
-            trench2: '1',
-        };
+    const autoTraversalHotkeyMap: Record<string, string> = {
+        trench1: '1',
+        bump1: '2',
+        bump2: '3',
+        trench2: '4',
+    };
 
-    const autoStartHotkeyMap: Record<string, string> = isFieldRotated
-        ? {
-            trench1: '1',
-            bump1: '2',
-            hub: 'S',
-            bump2: '3',
-            trench2: '4',
-        }
-        : {
-            trench1: '4',
-            bump1: '3',
-            hub: 'S',
-            bump2: '2',
-            trench2: '1',
-        };
+    const autoStartHotkeyMap: Record<string, string> = {
+        trench1: '1',
+        bump1: '2',
+        hub: 'S',
+        bump2: '3',
+        trench2: '4',
+    };
 
     const autoElementHotkeys: Partial<Record<string, string>> = {
         hub: 'S',
@@ -659,8 +644,7 @@ function AutoFieldMapContent({
             case 'trench2':
             case 'bump1':
             case 'bump2': {
-                const type = elementKey.includes('trench') ? 'trench' : 'bump';
-                addWaypoint('traversal', type, position);
+                addWaypoint('traversal', elementKey, position);
 
                 // Enter potential stuck ("Stuck?") phase for 5s
                 if (!recordingMode) {
@@ -894,8 +878,6 @@ function AutoFieldMapContent({
     ]);
 
     useEffect(() => {
-        if (recordingMode) return;
-
         const handleKeyDown = (event: KeyboardEvent) => {
             const key = event.key.toLowerCase();
             const target = event.target as HTMLElement | null;
@@ -977,7 +959,7 @@ function AutoFieldMapContent({
                 return;
             }
 
-            if (key === 'x') {
+            if (!recordingMode && key === 'x') {
                 event.preventDefault();
                 if (brokenDownStart) {
                     const duration = Date.now() - brokenDownStart;
@@ -994,7 +976,7 @@ function AutoFieldMapContent({
                 return;
             }
 
-            if (key === 'enter') {
+            if (!recordingMode && key === 'enter') {
                 event.preventDefault();
                 proceedToTeleop();
                 return;
@@ -1021,19 +1003,12 @@ function AutoFieldMapContent({
                         visibleAutoElementSet.has('trench2')
                     );
 
-            const autoTraversalElementKey = isFieldRotated
-                ? ({
-                    '1': 'trench1',
-                    '2': 'bump1',
-                    '3': 'bump2',
-                    '4': 'trench2',
-                } as const)[key]
-                : ({
-                    '1': 'trench2',
-                    '2': 'bump2',
-                    '3': 'bump1',
-                    '4': 'trench1',
-                } as const)[key];
+            const autoTraversalElementKey = ({
+                '1': 'trench1',
+                '2': 'bump1',
+                '3': 'bump2',
+                '4': 'trench2',
+            } as const)[key];
 
             if (actions.length === 0 && key === 's') {
                 event.preventDefault();

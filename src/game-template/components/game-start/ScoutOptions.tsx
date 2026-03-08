@@ -42,6 +42,22 @@ export function GameSpecificScoutOptions({
 
       <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer">
         <Checkbox
+          checked={options[GAME_SCOUT_OPTION_KEYS.disableDefensePopup] ?? false}
+          onCheckedChange={(checked) =>
+            onOptionChange(GAME_SCOUT_OPTION_KEYS.disableDefensePopup, checked === true)
+          }
+          className="mt-0.5"
+        />
+        <div>
+          <p className="text-sm font-medium">Disable defense popup</p>
+          <p className="text-xs text-muted-foreground">
+            Makes defense one-tap by recording a defense action without target/effectiveness details.
+          </p>
+        </div>
+      </label>
+
+      <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer">
+        <Checkbox
           checked={options[GAME_SCOUT_OPTION_KEYS.disableAutoPathDrawingTapOnly] ?? false}
           onCheckedChange={(checked) =>
             onOptionChange(GAME_SCOUT_OPTION_KEYS.disableAutoPathDrawingTapOnly, checked === true)

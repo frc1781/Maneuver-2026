@@ -26,10 +26,14 @@ interface DesktopPickListLayoutProps {
     searchFilter: string;
     sortBy: PickListSortOption;
     activeFilterIds: string[];
+    defenseTargetTeamFilter: string;
+    hideAllianceAssignedTeams: boolean;
     canDeleteAll?: boolean;
     onSearchChange: (search: string) => void;
     onSortChange: (sort: PickListSortOption) => void;
     onFilterChange: (filters: string[]) => void;
+    onDefenseTargetTeamFilterChange: (value: string) => void;
+    onToggleHideAllianceAssignedTeams: (hide: boolean) => void;
     onAddTeamToList: (team: TeamStats, listId: number) => void;
     onAddTeamToAlliance?: (teamNumber: number, allianceId: number) => void;
     onUpdateAlliances: (alliances: Alliance[]) => void;
@@ -54,10 +58,14 @@ export const DesktopPickListLayout = ({
     searchFilter,
     sortBy,
     activeFilterIds,
+    defenseTargetTeamFilter,
+    hideAllianceAssignedTeams,
     canDeleteAll = true,
     onSearchChange,
     onSortChange,
     onFilterChange,
+    onDefenseTargetTeamFilterChange,
+    onToggleHideAllianceAssignedTeams,
     onAddTeamToList,
     onAddTeamToAlliance,
     onUpdateAlliances,
@@ -82,9 +90,13 @@ export const DesktopPickListLayout = ({
                     searchFilter={searchFilter}
                     sortBy={sortBy}
                     activeFilterIds={activeFilterIds}
+                    defenseTargetTeamFilter={defenseTargetTeamFilter}
+                    hideAllianceAssignedTeams={hideAllianceAssignedTeams}
                     onSearchChange={onSearchChange}
                     onSortChange={onSortChange}
                     onFilterChange={onFilterChange}
+                    onDefenseTargetTeamFilterChange={onDefenseTargetTeamFilterChange}
+                    onToggleHideAllianceAssignedTeams={onToggleHideAllianceAssignedTeams}
                     onAddTeamToList={onAddTeamToList}
                     onAddTeamToAlliance={onAddTeamToAlliance}
                 />

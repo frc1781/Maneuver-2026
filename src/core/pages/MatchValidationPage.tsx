@@ -11,10 +11,10 @@ import {
   type FuelOPRDisplayMode,
 } from '@/core/components/match-validation';
 import { EventNameSelector } from '@/core/components/GameStartComponents/EventNameSelector';
-import { Card, CardContent } from '@/core/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/core/components/ui/card';
 import { Button } from '@/core/components/ui/button';
 import { Checkbox } from '@/core/components/ui/checkbox';
-import { RefreshCw, Settings } from 'lucide-react';
+import { RefreshCw, Settings, CheckCircle, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MatchListItem, ValidationConfig } from '@/core/lib/matchValidationTypes';
 import { DEFAULT_VALIDATION_CONFIG } from '@/core/lib/matchValidationTypes';
@@ -23,6 +23,11 @@ import { getCachedTBAEventMatches } from '@/core/lib/tbaCache';
 import { getEntriesByEvent } from '@/core/db/scoutingDatabase';
 import { calculateFuelOPRHybrid } from '@/game-template/fuelOpr';
 import { processPredictionRewardsForMatches } from '@/core/lib/predictionRewards';
+import {
+  correctClimbDataWithValidation,
+  previewClimbCorrectionsWithValidation,
+  type ClimbCorrectionPreview,
+} from '@/game-template/validationCorrections';
 
 const VALIDATION_CONFIG_KEY = 'validationConfig';
 const FUEL_OPR_INCLUDE_PLAYOFFS_KEY = 'fuelOprIncludePlayoffs';
@@ -50,6 +55,9 @@ export const MatchValidationPage: React.FC = () => {
   const [fuelOprMode, setFuelOprMode] = useState<FuelOPRDisplayMode>('impact');
   const [fuelOprLoading, setFuelOprLoading] = useState(false);
   const [fuelOprIncludePlayoffs, setFuelOprIncludePlayoffs] = useState(true);
+  const [previewingClimbCorrections, setPreviewingClimbCorrections] = useState(false);
+  const [correctingClimbData, setCorrectingClimbData] = useState(false);
+  const [climbCorrectionPreview, setClimbCorrectionPreview] = useState<ClimbCorrectionPreview | null>(null);
 
   // Load current event and validation config from localStorage on mount
   useEffect(() => {
@@ -616,6 +624,74 @@ export const MatchValidationPage: React.FC = () => {
     };
   }, [eventKey, isValidating, matchList]);
 
+  const handlePreviewClimbCorrections = async () => {
+    if (!eventKey.trim()) {
+      toast.error('Please select an event first');
+      return;
+    }
+
+    setPreviewingClimbCorrections(true);
+    try {
+      const cachedMatches = await getCachedTBAEventMatches(eventKey, true);
+      if (cachedMatches.length === 0) {
+        toast.error('Load Match Validation Data on API Data page first');
+        setClimbCorrectionPreview(null);
+        return;
+      }
+
+      const preview = await previewClimbCorrectionsWithValidation(eventKey, cachedMatches);
+      setClimbCorrectionPreview(preview);
+
+      if (preview.candidates.length > 0) {
+        toast.info(`Found ${preview.candidates.length} climb corrections to review`);
+      } else {
+        toast.info('No climb corrections found');
+      }
+    } catch (error) {
+      console.error('Failed to preview climb corrections:', error);
+      toast.error('Failed to preview climb corrections');
+    } finally {
+      setPreviewingClimbCorrections(false);
+    }
+  };
+
+  const handleApplyClimbCorrections = async () => {
+    if (!eventKey.trim()) {
+      toast.error('Please select an event first');
+      return;
+    }
+
+    setCorrectingClimbData(true);
+    try {
+      const cachedMatches = await getCachedTBAEventMatches(eventKey, true);
+      if (cachedMatches.length === 0) {
+        toast.error('Load Match Validation Data on API Data page first');
+        return;
+      }
+
+      const summary = await correctClimbDataWithValidation(eventKey, cachedMatches, 'match-validation-climb-correction');
+      setClimbCorrectionPreview(null);
+
+      if (summary.correctedEntries > 0) {
+        toast.success(
+          `Corrected ${summary.correctedEntries} climb entries (${summary.skippedMissingEntries} missing entries, ${summary.skippedNoTBAClimbData} with no climb data)`
+        );
+
+        toast.info('Re-running match validation to refresh discrepancies...');
+        await validateEvent();
+      } else {
+        toast.info(
+          `No climb corrections needed (${summary.skippedMissingEntries} missing entries, ${summary.skippedNoTBAClimbData} with no climb data)`
+        );
+      }
+    } catch (error) {
+      console.error('Failed to apply climb corrections:', error);
+      toast.error('Failed to apply climb corrections');
+    } finally {
+      setCorrectingClimbData(false);
+    }
+  };
+
   return (
     <div className="container min-h-screen mx-auto px-4 pt-12 pb-24 space-y-6 mt-safe">
       {/* Header */}
@@ -721,6 +797,64 @@ export const MatchValidationPage: React.FC = () => {
             onModeChange={setFuelOprMode}
             isLoading={fuelOprLoading}
           />
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Climb Corrections</CardTitle>
+              <CardDescription>
+                Preview and apply climb data corrections from TBA validation (auto and endgame).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handlePreviewClimbCorrections}
+                  disabled={previewingClimbCorrections || correctingClimbData || !eventKey}
+                >
+                  <CheckCircle className={`h-4 w-4 mr-2 ${previewingClimbCorrections ? 'animate-spin' : ''}`} />
+                  {previewingClimbCorrections ? 'Scanning...' : 'Preview Climb Corrections'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={handleApplyClimbCorrections}
+                  disabled={correctingClimbData || previewingClimbCorrections || !eventKey}
+                >
+                  <Wrench className={`h-4 w-4 mr-2 ${correctingClimbData ? 'animate-spin' : ''}`} />
+                  {correctingClimbData ? 'Correcting...' : 'Apply Climb Corrections'}
+                </Button>
+              </div>
+
+              {climbCorrectionPreview && (
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="text-sm font-medium">Climb Correction Preview</div>
+                  <div className="text-xs text-muted-foreground">
+                    {climbCorrectionPreview.candidates.length} fixable entries • {climbCorrectionPreview.summary.skippedMissingEntries} missing entries • {climbCorrectionPreview.summary.skippedNoTBAClimbData} no TBA climb data
+                  </div>
+                  {climbCorrectionPreview.candidates.length > 0 ? (
+                    <div className="max-h-56 overflow-y-auto space-y-1">
+                      {climbCorrectionPreview.candidates.map((candidate) => {
+                        const currentLabel = candidate.currentFailed
+                          ? 'Failed'
+                          : candidate.currentLevel ? `Level ${candidate.currentLevel}` : 'No climb';
+                        const tbaLabel = candidate.tbaFailed
+                          ? 'Failed'
+                          : candidate.tbaLevel ? `Level ${candidate.tbaLevel}` : 'No climb';
+
+                        return (
+                          <div key={`${candidate.matchKey}-${candidate.teamNumber}-${candidate.alliance}`} className="text-xs rounded border px-2 py-1">
+                            {candidate.phase.toUpperCase()} • Match {candidate.matchNumber} • {candidate.alliance.toUpperCase()} • Team {candidate.teamNumber}: {currentLabel} → {tbaLabel}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">No climb mismatches found.</div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 

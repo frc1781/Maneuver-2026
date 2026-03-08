@@ -189,6 +189,22 @@ export function GameSpecificQuestions({ gameData = {}, onGameDataChange }: GameS
     return index >= 0 ? index + 1 : null;
   };
 
+  const targetClimbLevel = (gameData.targetClimbLevel as string) || 'none';
+  const isTargetClimbLevelNone = targetClimbLevel === 'none';
+
+  const handleTargetClimbLevelChange = (value: string) => {
+    const nextGameData: Record<string, unknown> = {
+      ...gameData,
+      targetClimbLevel: value,
+    };
+
+    if (value === 'none') {
+      nextGameData.targetClimbLocation = 'none';
+    }
+
+    onGameDataChange(nextGameData);
+  };
+
   const handleRecordingScoutOptionChange = (key: string, value: boolean) => {
     setRecordingScoutOptions((prev) => {
       const next = {
@@ -402,8 +418,8 @@ export function GameSpecificQuestions({ gameData = {}, onGameDataChange }: GameS
           <div className="space-y-2">
             <Label htmlFor="targetClimbLevel">Target Endgame Climb Level</Label>
             <Select
-              value={(gameData.targetClimbLevel as string) || 'none'}
-              onValueChange={(value) => handleChange('targetClimbLevel', value)}
+              value={targetClimbLevel}
+              onValueChange={handleTargetClimbLevelChange}
             >
               <SelectTrigger id="targetClimbLevel">
                 <SelectValue placeholder="Select climb level" />
@@ -413,6 +429,24 @@ export function GameSpecificQuestions({ gameData = {}, onGameDataChange }: GameS
                 <SelectItem value="level1">Level 1 (10 pts)</SelectItem>
                 <SelectItem value="level2">Level 2 (20 pts)</SelectItem>
                 <SelectItem value="level3">Level 3 (30 pts)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="targetClimbLocation"> Climb Location?</Label>
+            <Select
+              value={(gameData.targetClimbLocation as string) || 'none'}
+              onValueChange={(value) => handleChange('targetClimbLocation', value)}
+              disabled={isTargetClimbLevelNone}
+            >
+              <SelectTrigger id="targetClimbLocation" disabled={isTargetClimbLevelNone}>
+                <SelectValue placeholder="Select climb location" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Unknown / No preference</SelectItem>
+                <SelectItem value="side">Side</SelectItem>
+                <SelectItem value="middle">Middle</SelectItem>
               </SelectContent>
             </Select>
           </div>

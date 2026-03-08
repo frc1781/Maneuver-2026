@@ -26,6 +26,7 @@ export { ZoneOverlay } from './ZoneOverlay';
 export { FieldHeader, type FieldHeaderProps, type FieldHeaderStat } from './FieldHeader';
 export { PendingWaypointPopup, type PendingWaypointPopupProps } from './PendingWaypointPopup';
 export { ShotTypePopup } from './ShotTypePopup';
+export { DefensePopup } from './DefensePopup';
 
 
 

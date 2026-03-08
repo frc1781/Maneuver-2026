@@ -216,6 +216,82 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
 
     const defenseCount = teamMatches.filter(m => m.gameData?.teleop?.playedDefense === true).length;
 
+    const defenseByTargetAccumulator: Record<string, { attempts: number; very: number; somewhat: number; not: number; }> = {};
+    let totalDefenseEvents = 0;
+    let veryEffectiveCount = 0;
+    let somewhatEffectiveCount = 0;
+    let notEffectiveCount = 0;
+
+    teamMatches.forEach((match) => {
+        const teleopPath = match.gameData?.teleop?.teleopPath;
+        if (!Array.isArray(teleopPath)) return;
+
+        teleopPath.forEach((waypoint) => {
+            if (!waypoint || typeof waypoint !== 'object') return;
+            const record = waypoint as Record<string, unknown>;
+            if (record.type !== 'defense') return;
+
+            totalDefenseEvents += 1;
+            const defendedTeamNumber = Number(record.defendedTeamNumber);
+            const targetKey = Number.isFinite(defendedTeamNumber) && defendedTeamNumber > 0
+                ? String(defendedTeamNumber)
+                : 'Unknown';
+
+            if (!defenseByTargetAccumulator[targetKey]) {
+                defenseByTargetAccumulator[targetKey] = { attempts: 0, very: 0, somewhat: 0, not: 0 };
+            }
+
+            const targetSummary = defenseByTargetAccumulator[targetKey]!;
+            targetSummary.attempts += 1;
+
+            const effectiveness = record.defenseEffectiveness;
+            if (effectiveness === 'very') {
+                veryEffectiveCount += 1;
+                targetSummary.very += 1;
+            } else if (effectiveness === 'somewhat') {
+                somewhatEffectiveCount += 1;
+                targetSummary.somewhat += 1;
+            } else if (effectiveness === 'not') {
+                notEffectiveCount += 1;
+                targetSummary.not += 1;
+            }
+        });
+    });
+
+    const defenseByTarget = Object.fromEntries(
+        Object.entries(defenseByTargetAccumulator).map(([team, stats]) => {
+            const weighted = (stats.very * 2) + stats.somewhat;
+            const effectivenessScore = stats.attempts > 0
+                ? Math.round((weighted / (stats.attempts * 2)) * 100)
+                : 0;
+
+            return [team, { ...stats, effectivenessScore }];
+        })
+    );
+
+    const mostDefendedTeam = Object.entries(defenseByTarget as Record<string, { attempts: number }> )
+        .filter(([team]) => team !== 'Unknown')
+        .sort(([, a], [, b]) => b.attempts - a.attempts)[0]?.[0] || 'None';
+
+    const mostEffectiveDefenseTargetEntry = Object.entries(
+        defenseByTarget as Record<string, { attempts: number; effectivenessScore: number }>
+    )
+        .filter(([team, stats]) => team !== 'Unknown' && stats.attempts > 0)
+        .sort(([, a], [, b]) => {
+            if (b.effectivenessScore !== a.effectivenessScore) {
+                return b.effectivenessScore - a.effectivenessScore;
+            }
+            return b.attempts - a.attempts;
+        })[0];
+
+    const mostEffectiveDefenseTarget = mostEffectiveDefenseTargetEntry
+        ? `${mostEffectiveDefenseTargetEntry[0]} (${mostEffectiveDefenseTargetEntry[1].effectivenessScore}%)`
+        : 'None';
+
+    const defenseEffectivenessScore = totalDefenseEvents > 0
+        ? Math.round((((veryEffectiveCount * 2) + somewhatEffectiveCount) / (totalDefenseEvents * 2)) * 100)
+        : 0;
+
     // Defense counts by zone
     const defenseAllianceTotal = sum(teamMatches, m => val(m.gameData?.teleop?.defenseAllianceCount));
     const defenseNeutralTotal = sum(teamMatches, m => val(m.gameData?.teleop?.defenseNeutralCount));
@@ -478,6 +554,13 @@ export const calculateTeamStats = (teamMatches: ScoutingEntry[]): Omit<TeamStats
         roleInactiveDefenseRate: percent(roleInactiveDefenseCount, matchCount),
         roleInactiveCyclerRate: percent(roleInactiveCyclerCount, matchCount),
         roleInactiveThiefRate: percent(roleInactiveThiefCount, matchCount),
+        defenseVeryEffectiveRate: totalDefenseEvents > 0 ? Math.round((veryEffectiveCount / totalDefenseEvents) * 100) : 0,
+        defenseSomewhatEffectiveRate: totalDefenseEvents > 0 ? Math.round((somewhatEffectiveCount / totalDefenseEvents) * 100) : 0,
+        defenseNotEffectiveRate: totalDefenseEvents > 0 ? Math.round((notEffectiveCount / totalDefenseEvents) * 100) : 0,
+        defenseEffectivenessScore,
+        mostDefendedTeam,
+        mostEffectiveDefenseTarget,
+        defenseByTarget,
         startPositions: startPositionPercentages,
         matchResults,
 
@@ -691,6 +774,13 @@ function getEmptyStats(): Omit<TeamStats, 'teamNumber' | 'eventKey'> {
         roleInactiveDefenseRate: 0,
         roleInactiveCyclerRate: 0,
         roleInactiveThiefRate: 0,
+        defenseVeryEffectiveRate: 0,
+        defenseSomewhatEffectiveRate: 0,
+        defenseNotEffectiveRate: 0,
+        defenseEffectivenessScore: 0,
+        mostDefendedTeam: 'None',
+        mostEffectiveDefenseTarget: 'None',
+        defenseByTarget: {},
         startPositions: {},
         matchResults: [],
     };

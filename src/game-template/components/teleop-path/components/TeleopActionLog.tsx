@@ -28,6 +28,13 @@ export interface TeleopActionLogProps {
 // =============================================================================
 
 function getActionDisplay(action: PathWaypoint): { label: string; points: number } {
+    if (action.type === 'defense') {
+        return {
+            label: 'Defense',
+            points: 0,
+        };
+    }
+
     // Find matching action in schema
     const schemaAction = Object.entries(schemaActions).find(([key, def]) => {
         if (def.pathType !== action.type) return false;
@@ -56,6 +63,13 @@ function getActionDisplay(action: PathWaypoint): { label: string; points: number
         label: action.type.charAt(0).toUpperCase() + action.type.slice(1),
         points: 0
     };
+}
+
+function getDefenseEffectivenessLabel(effectiveness?: PathWaypoint['defenseEffectiveness']): string {
+    if (effectiveness === 'very') return 'Very Effective';
+    if (effectiveness === 'somewhat') return 'Somewhat Effective';
+    if (effectiveness === 'not') return 'Not Effective';
+    return 'Unknown Effectiveness';
 }
 
 // =============================================================================
@@ -132,6 +146,11 @@ export function TeleopActionLog({ actions, open, onOpenChange }: TeleopActionLog
                                         {action.action && (
                                             <div className="text-xs text-muted-foreground italic">
                                                 {action.action}
+                                            </div>
+                                        )}
+                                        {action.type === 'defense' && (
+                                            <div className="text-xs text-muted-foreground">
+                                                Defended Team {action.defendedTeamNumber ?? 'Unknown'} • {getDefenseEffectivenessLabel(action.defenseEffectiveness)}
                                             </div>
                                         )}
                                     </div>

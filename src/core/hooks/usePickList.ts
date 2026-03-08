@@ -20,6 +20,7 @@ import {
     filterOptions,
     getSortValue,
     isAscendingSort,
+    type PickListFilterContext,
     type PickListSortOption,
 } from "@/game-template/pick-list-config";
 import type { Alliance, BackupTeam } from "@/core/lib/allianceTypes";
@@ -40,8 +41,10 @@ export interface UsePickListResult {
     searchFilter: string;
     sortBy: PickListSortOption;
     activeFilterIds: string[];
+    defenseTargetTeamFilter: string;
     activeTab: string;
     showAllianceSelection: boolean;
+    hideAllianceAssignedTeams: boolean;
 
     // State setters
     setNewListName: (name: string) => void;
@@ -49,9 +52,11 @@ export interface UsePickListResult {
     setSearchFilter: (filter: string) => void;
     setSortBy: (sort: PickListSortOption) => void;
     setActiveFilterIds: (filters: string[]) => void;
+    setDefenseTargetTeamFilter: (teamNumber: string) => void;
     setActiveTab: (tab: string) => void;
     setAlliances: (alliances: Alliance[]) => void;
     setBackups: (backups: BackupTeam[]) => void;
+    setHideAllianceAssignedTeams: (hide: boolean) => void;
 
     // Actions
     addTeamToList: (team: TeamStats, listId: number) => void;
@@ -78,8 +83,10 @@ export const usePickList = (eventKey?: string): UsePickListResult => {
     const [searchFilter, setSearchFilter] = useState("");
     const [sortBy, setSortBy] = useState<PickListSortOption>("teamNumber");
     const [activeFilterIds, setActiveFilterIds] = useState<string[]>([]);
+    const [defenseTargetTeamFilter, setDefenseTargetTeamFilter] = useState("");
     const [activeTab, setActiveTab] = useState("teams");
     const [showAllianceSelection, setShowAllianceSelection] = useState(true);
+    const [hideAllianceAssignedTeams, setHideAllianceAssignedTeams] = useState(true);
     const [isInitialized, setIsInitialized] = useState(false);
 
     // Load pick lists from localStorage
@@ -117,12 +124,25 @@ export const usePickList = (eventKey?: string): UsePickListResult => {
         }
     }, []);
 
+    // Load available team filtering preference from localStorage
+    useEffect(() => {
+        const savedPreference = localStorage.getItem("pickListHideAllianceAssignedTeams");
+        if (savedPreference !== null) {
+            setHideAllianceAssignedTeams(savedPreference === "true");
+        }
+    }, []);
+
     // Save alliances to localStorage
     useEffect(() => {
         if (alliances.length > 0) {
             localStorage.setItem("alliances", JSON.stringify(alliances));
         }
     }, [alliances]);
+
+    // Save available team filtering preference to localStorage
+    useEffect(() => {
+        localStorage.setItem("pickListHideAllianceAssignedTeams", String(hideAllianceAssignedTeams));
+    }, [hideAllianceAssignedTeams]);
 
     // Load backups from localStorage
     useEffect(() => {
@@ -180,6 +200,14 @@ export const usePickList = (eventKey?: string): UsePickListResult => {
 
     // Filtered and sorted teams
     const filteredAndSortedTeams = useMemo(() => {
+        const parsedDefenseTarget = Number.parseInt(defenseTargetTeamFilter.trim(), 10);
+        const filterContext: PickListFilterContext = {
+            defendedTeamNumber:
+                Number.isFinite(parsedDefenseTarget) && parsedDefenseTarget > 0
+                    ? parsedDefenseTarget
+                    : null,
+        };
+
         const filtered = filterTeams(teamStats, searchFilter)
             .filter((team) => {
                 if (activeFilterIds.length === 0) {
@@ -188,13 +216,19 @@ export const usePickList = (eventKey?: string): UsePickListResult => {
 
                 return activeFilterIds.every((filterId) => {
                     const option = filterOptions.find((candidate) => candidate.id === filterId);
-                    return option ? option.predicate(team) : true;
+                    return option ? option.predicate(team, filterContext) : true;
                 });
             })
-            .filter((team) => !allianceAssignedTeams.has(team.teamNumber));
+            .filter((team) => {
+                if (!hideAllianceAssignedTeams) {
+                    return true;
+                }
+
+                return !allianceAssignedTeams.has(team.teamNumber);
+            });
 
         return sortTeams(filtered, sortBy);
-    }, [teamStats, searchFilter, activeFilterIds, sortBy, sortTeams, allianceAssignedTeams]);
+    }, [teamStats, searchFilter, activeFilterIds, sortBy, sortTeams, allianceAssignedTeams, hideAllianceAssignedTeams, defenseTargetTeamFilter]);
 
     // Add team to a pick list
     const addTeamToList = useCallback((team: TeamStats, listId: number) => {
@@ -414,8 +448,10 @@ export const usePickList = (eventKey?: string): UsePickListResult => {
         searchFilter,
         sortBy,
         activeFilterIds,
+        defenseTargetTeamFilter,
         activeTab,
         showAllianceSelection,
+        hideAllianceAssignedTeams,
 
         // State setters
         setNewListName,
@@ -423,9 +459,11 @@ export const usePickList = (eventKey?: string): UsePickListResult => {
         setSearchFilter,
         setSortBy,
         setActiveFilterIds,
+        setDefenseTargetTeamFilter,
         setActiveTab,
         setAlliances,
         setBackups,
+        setHideAllianceAssignedTeams,
 
         // Actions
         addTeamToList,

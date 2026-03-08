@@ -243,7 +243,20 @@ function generatePrediction(
 // Game Data Generation (uses injected generator)
 // ============================================================================
 
-export type GameDataGenerator = (profile: TeamSkillProfile, matchKey: string) => Record<string, unknown>;
+export interface GameDataGenerationContext {
+    eventKey: string;
+    matchNumber: number;
+    allianceColor: AllianceColor;
+    teamNumber: number;
+    allianceTeams: number[];
+    opponentTeams: number[];
+}
+
+export type GameDataGenerator = (
+    profile: TeamSkillProfile,
+    matchKey: string,
+    context?: GameDataGenerationContext
+) => Record<string, unknown>;
 
 /**
  * Default game data generator (random data, no profile consideration)
@@ -971,7 +984,14 @@ export async function generateDemoEvent(options: DemoDataOptions = {}): Promise<
                     matchKey: normalizedMatchKey,
                     timestamp: Date.now() - (allMatches.length - allMatches.indexOf(match)) * 60000, // Spread over time
                     comments: Math.random() > 0.7 ? generateRandomComment(profile) : undefined,
-                    gameData: gameDataGenerator(profile, normalizedMatchKey),
+                    gameData: gameDataGenerator(profile, normalizedMatchKey, {
+                        eventKey,
+                        matchNumber: match.matchNumber,
+                        allianceColor: 'red',
+                        teamNumber,
+                        allianceTeams: [...match.redTeams],
+                        opponentTeams: [...match.blueTeams],
+                    }),
                 };
                 
                 await saveScoutingEntry(entry);
@@ -1008,7 +1028,14 @@ export async function generateDemoEvent(options: DemoDataOptions = {}): Promise<
                     matchKey: normalizedMatchKey,
                     timestamp: Date.now() - (allMatches.length - allMatches.indexOf(match)) * 60000,
                     comments: Math.random() > 0.7 ? generateRandomComment(profile) : undefined,
-                    gameData: gameDataGenerator(profile, normalizedMatchKey),
+                    gameData: gameDataGenerator(profile, normalizedMatchKey, {
+                        eventKey,
+                        matchNumber: match.matchNumber,
+                        allianceColor: 'blue',
+                        teamNumber,
+                        allianceTeams: [...match.blueTeams],
+                        opponentTeams: [...match.redTeams],
+                    }),
                 };
                 
                 await saveScoutingEntry(entry);

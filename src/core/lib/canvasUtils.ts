@@ -282,6 +282,7 @@ export const drawSelectedAutoRoutines = (
     stageId: StrategyStageId,
     selectedAutoRoutinesBySlot: (StrategyAutoRoutine | null)[] = [],
     isolatedAutoSlot: number | null = null,
+    replayDrawProgress?: number,
 ) => {
     if (stageId !== 'autonomous') return;
 
@@ -398,8 +399,27 @@ export const drawSelectedAutoRoutines = (
     };
 
     const buildRoutineSegments = (routine: StrategyAutoRoutine, slotIndex: number) => {
-        const segments: Array<{ points: Array<{ x: number; y: number }>; type?: string; kind: 'connector' | 'path' | 'fallback' }> = [];
+        const segments: Array<{
+            points: Array<{ x: number; y: number }>;
+            type?: string;
+            kind: 'connector' | 'path' | 'fallback';
+            length: number;
+        }> = [];
         let previousPoint: { x: number; y: number } | null = null;
+
+        const getPolylineLength = (points: Array<{ x: number; y: number }>) => {
+            if (points.length < 2) return 0;
+
+            let length = 0;
+            for (let index = 1; index < points.length; index++) {
+                const previous = points[index - 1];
+                const current = points[index];
+                if (!previous || !current) continue;
+                length += Math.hypot(current.x - previous.x, current.y - previous.y);
+            }
+
+            return length;
+        };
 
         routine.actions.forEach((waypoint) => {
             const currentPoint = mapPointForSlot(waypoint.position, slotIndex);
@@ -416,14 +436,26 @@ export const drawSelectedAutoRoutines = (
                             points: [previousPoint, pathStart],
                             type: waypoint.type,
                             kind: 'connector',
+                            length: getPolylineLength([previousPoint, pathStart]),
                         });
                     }
                 }
 
-                segments.push({ points: originalPath, type: waypoint.type, kind: 'path' });
+                segments.push({
+                    points: originalPath,
+                    type: waypoint.type,
+                    kind: 'path',
+                    length: getPolylineLength(originalPath),
+                });
                 previousPoint = originalPath[originalPath.length - 1] ?? currentPoint;
             } else if (previousPoint) {
-                segments.push({ points: [previousPoint, currentPoint], type: waypoint.type, kind: 'fallback' });
+                const fallbackPoints = [previousPoint, currentPoint];
+                segments.push({
+                    points: fallbackPoints,
+                    type: waypoint.type,
+                    kind: 'fallback',
+                    length: getPolylineLength(fallbackPoints),
+                });
                 previousPoint = currentPoint;
             } else {
                 previousPoint = currentPoint;
@@ -448,6 +480,43 @@ export const drawSelectedAutoRoutines = (
             type: waypoint.type,
         }));
         const segments = buildRoutineSegments(routine, slotIndex);
+        const clampedReplayProgress = typeof replayDrawProgress === 'number'
+            ? Math.max(0, Math.min(1, replayDrawProgress))
+            : null;
+
+        const trimPolylineToLength = (
+            points: Array<{ x: number; y: number }>,
+            maxLength: number,
+        ): Array<{ x: number; y: number }> => {
+            if (points.length < 2) return points;
+            if (maxLength <= 0) return [points[0]!];
+
+            const trimmed: Array<{ x: number; y: number }> = [points[0]!];
+            let remaining = maxLength;
+
+            for (let index = 1; index < points.length; index++) {
+                const previous = points[index - 1]!;
+                const current = points[index]!;
+                const segmentLength = Math.hypot(current.x - previous.x, current.y - previous.y);
+
+                if (segmentLength <= 0) continue;
+
+                if (remaining >= segmentLength) {
+                    trimmed.push(current);
+                    remaining -= segmentLength;
+                    continue;
+                }
+
+                const t = remaining / segmentLength;
+                trimmed.push({
+                    x: previous.x + (current.x - previous.x) * t,
+                    y: previous.y + (current.y - previous.y) * t,
+                });
+                break;
+            }
+
+            return trimmed;
+        };
 
         if (pathPoints.length === 0) return;
 
@@ -456,13 +525,28 @@ export const drawSelectedAutoRoutines = (
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
+        const totalSegmentLength = segments.reduce((sum, segment) => sum + segment.length, 0);
+        let remainingLength = clampedReplayProgress === null
+            ? Number.POSITIVE_INFINITY
+            : totalSegmentLength * clampedReplayProgress;
+
         segments.forEach((segment) => {
             if (!segment.points.length) return;
+            if (segment.length <= 0) return;
+            if (remainingLength <= 0) return;
             const segmentColor = segment.kind === 'connector'
                 ? connectorColor
                 : (segment.kind === 'path' ? getActionColor(segment.type) : connectorColor);
 
-            drawShapeStampedPolyline(segment.points, segmentColor, slotIndex);
+            const visiblePoints = clampedReplayProgress === null
+                ? segment.points
+                : trimPolylineToLength(segment.points, Math.min(segment.length, remainingLength));
+
+            drawShapeStampedPolyline(visiblePoints, segmentColor, slotIndex);
+
+            if (clampedReplayProgress !== null) {
+                remainingLength -= segment.length;
+            }
         });
 
         pathPoints.forEach((point, pointIndex) => {

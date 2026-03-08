@@ -5,7 +5,7 @@
  * Outputs raw match data that gets transformed through gameDataTransformation.
  */
 
-import type { GameDataGenerator } from '@/core/lib/demoDataGenerator';
+import type { GameDataGenerationContext, GameDataGenerator } from '@/core/lib/demoDataGenerator';
 import { gameDataTransformation } from './transformation';
 
 // Field element positions (normalized 0-1) for realistic waypoint placement
@@ -229,10 +229,43 @@ function pickShotType(phase: 'auto' | 'teleop', skillLevel: string): 'onTheMove'
     return Math.random() < movingChance ? 'onTheMove' : 'stationary';
 }
 
+function pickDefenseEffectiveness(skillLevel: string): 'very' | 'somewhat' | 'not' {
+    const roll = Math.random();
+
+    if (skillLevel === 'elite') {
+        if (roll < 0.55) return 'very';
+        if (roll < 0.9) return 'somewhat';
+        return 'not';
+    }
+
+    if (skillLevel === 'strong') {
+        if (roll < 0.4) return 'very';
+        if (roll < 0.82) return 'somewhat';
+        return 'not';
+    }
+
+    if (skillLevel === 'average') {
+        if (roll < 0.22) return 'very';
+        if (roll < 0.72) return 'somewhat';
+        return 'not';
+    }
+
+    if (roll < 0.12) return 'very';
+    if (roll < 0.58) return 'somewhat';
+    return 'not';
+}
+
+function pickDefenseZone(): 'opponentZone' | 'neutralZone' | 'allianceZone' {
+    const roll = Math.random();
+    if (roll < 0.78) return 'opponentZone';
+    if (roll < 0.95) return 'neutralZone';
+    return 'allianceZone';
+}
+
 /**
  * Generate realistic 2026 game data based on team skill profile
  */
-export const generate2026GameData: GameDataGenerator = (profile, matchKey) => {
+export const generate2026GameData: GameDataGenerator = (profile, matchKey, context?: GameDataGenerationContext) => {
     const isPlayoff = matchKey.includes('qf') || matchKey.includes('sf') || matchKey.includes('f');
     const matchOrdinal = parseMatchOrdinal(matchKey);
     const eventProgress = clamp(matchOrdinal / 70, 0, 1);
@@ -364,7 +397,7 @@ export const generate2026GameData: GameDataGenerator = (profile, matchKey) => {
     let defenseChance = defenseBaseBySkill[profile.skillLevel] ?? 0.2;
     defenseChance += profile.consistency < 0.68 ? 0.06 : -0.03;
     defenseChance += isPlayoff ? -0.03 : 0.02;
-    const playedDefense = Math.random() < clamp(defenseChance, 0.06, 0.45);
+    const playedDefenseIntent = Math.random() < clamp(defenseChance, 0.1, 0.55);
 
     // Traversal archetype influences hopper size and cycle tempo
     // - bump-primary: larger hopper, fewer/bigger dumps
@@ -377,7 +410,7 @@ export const generate2026GameData: GameDataGenerator = (profile, matchKey) => {
     } as const;
     let bumpPrimaryChance: number = bumpPrimaryChanceBySkill[profile.skillLevel] ?? 0.4;
     if (isPasser) bumpPrimaryChance -= 0.1;
-    if (playedDefense) bumpPrimaryChance += 0.08;
+    if (playedDefenseIntent) bumpPrimaryChance += 0.08;
     bumpPrimaryChance = Math.max(0.1, Math.min(0.9, bumpPrimaryChance));
     const traversalArchetype: 'bump' | 'trench' = Math.random() < bumpPrimaryChance ? 'bump' : 'trench';
 
@@ -474,7 +507,7 @@ export const generate2026GameData: GameDataGenerator = (profile, matchKey) => {
     }
 
     // Add fuel passed waypoints as bursts (distributed across neutral/opponent origin points)
-    const opponentOriginChance = isPasser ? 0.55 : playedDefense ? 0.45 : 0.2;
+    const opponentOriginChance = isPasser ? 0.55 : playedDefenseIntent ? 0.45 : 0.2;
     let remainingTeleopPasses = teleopPassCount;
     let teleopPassTimestamp = Date.now();
     while (remainingTeleopPasses > 0) {
@@ -515,6 +548,48 @@ export const generate2026GameData: GameDataGenerator = (profile, matchKey) => {
             ? randomInt(650, 1400)
             : randomInt(420, 1000);
     }
+
+    const opponentTeams = Array.isArray(context?.opponentTeams)
+        ? context!.opponentTeams.filter((team): team is number => Number.isFinite(team) && team > 0)
+        : [];
+
+    const generateFallbackOpponentTeam = () => randomInt(1000, 4029);
+    const primaryDefenseTarget = opponentTeams.length > 0
+        ? opponentTeams[randomInt(0, opponentTeams.length - 1)]
+        : generateFallbackOpponentTeam();
+
+    const defenseEventBase = playedDefenseIntent
+        ? randomInt(1, 4)
+        : (Math.random() < 0.18 ? 1 : 0);
+
+    for (let eventIndex = 0; eventIndex < defenseEventBase; eventIndex++) {
+        const defendedTeamNumber = (() => {
+            if (opponentTeams.length === 0) return generateFallbackOpponentTeam();
+            if (Math.random() < 0.7) return primaryDefenseTarget;
+            return opponentTeams[randomInt(0, opponentTeams.length - 1)]!;
+        })();
+
+        const defenseEffectiveness = pickDefenseEffectiveness(profile.skillLevel);
+        const zone = pickDefenseZone();
+        const anchorSpot = zone === 'opponentZone'
+            ? pickWeightedSpot(OPPONENT_PASS_SPOTS, { preferredLane, preferredDepth, profile: 'teleop' })
+            : zone === 'neutralZone'
+                ? pickWeightedSpot(NEUTRAL_PASS_SPOTS, { preferredLane, preferredDepth, profile: 'teleop' })
+                : pickWeightedSpot(ALLIANCE_SCORING_SPOTS, { preferredLane, preferredDepth, profile: 'teleop' });
+
+        teleopActions.push({
+            type: 'defense',
+            action: 'defense',
+            timestamp: Date.now() + randomInt(35000, 125000),
+            position: jitter(anchorSpot.pos, 0.06),
+            zone,
+            defendedTeamNumber,
+            defenseTargetSource: opponentTeams.length > 0 ? 'schedule' : 'custom',
+            defenseEffectiveness,
+        });
+    }
+
+    const playedDefense = defenseEventBase > 0;
 
     // =========================================================================
     // Climbing Simulation (start time + location + outcome)

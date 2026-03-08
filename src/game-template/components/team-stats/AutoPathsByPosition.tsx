@@ -5,12 +5,12 @@
  * Uses the same field visualization as AutoFieldMap but in read-only mode.
  */
 
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Card } from '@/core/components/ui/card';
 import { Badge } from '@/core/components/ui/badge';
 import { Button } from '@/core/components/ui/button';
 import { Checkbox } from '@/core/components/ui/checkbox';
-import { Maximize2 } from 'lucide-react';
+import { Maximize2, Play, Pause, RotateCcw } from 'lucide-react';
 import { cn } from '@/core/lib/utils';
 import type { MatchResult } from '@/game-template/analysis';
 import { FieldCanvas, type FieldCanvasRef, FieldHeader, type PathWaypoint } from '@/game-template/components/field-map';
@@ -36,6 +36,60 @@ const START_POSITION_LABELS = ['Left Trench', 'Left Bump', 'Hub', 'Right Bump', 
 const POSITION_KEYS = [0, 1, 2, 3, 4] as const;
 type PositionIndex = (typeof POSITION_KEYS)[number];
 
+const MIN_REPLAY_DURATION_MS = 6000;
+const MAX_REPLAY_DURATION_MS = 20000;
+const MIN_LENGTH_FOR_SCALING = 0.15;
+const MAX_LENGTH_FOR_SCALING = 2.2;
+
+function getPolylineLength(points: { x: number; y: number }[]): number {
+    if (points.length < 2) return 0;
+
+    let length = 0;
+    for (let index = 1; index < points.length; index += 1) {
+        const previous = points[index - 1]!;
+        const current = points[index]!;
+        length += Math.hypot(current.x - previous.x, current.y - previous.y);
+    }
+
+    return length;
+}
+
+function getAutoPathLength(actions: PathWaypoint[]): number {
+    if (actions.length < 2) return 0;
+
+    let totalLength = 0;
+    for (let index = 1; index < actions.length; index += 1) {
+        const previous = actions[index - 1];
+        const current = actions[index];
+        if (!previous || !current) continue;
+
+        const startPoint = (previous.pathPoints && previous.pathPoints.length > 0)
+            ? previous.pathPoints[previous.pathPoints.length - 1]!
+            : previous.position;
+
+        if (current.pathPoints && current.pathPoints.length > 0) {
+            const pathStart = current.pathPoints[0]!;
+            totalLength += getPolylineLength([startPoint, pathStart]);
+            totalLength += getPolylineLength(current.pathPoints);
+        } else {
+            totalLength += getPolylineLength([startPoint, current.position]);
+        }
+    }
+
+    return totalLength;
+}
+
+function getScaledReplayDurationMs(totalPathLength: number): number {
+    if (totalPathLength <= MIN_LENGTH_FOR_SCALING) return MIN_REPLAY_DURATION_MS;
+
+    const ratio = Math.min(
+        1,
+        (totalPathLength - MIN_LENGTH_FOR_SCALING) / (MAX_LENGTH_FOR_SCALING - MIN_LENGTH_FOR_SCALING)
+    );
+
+    return Math.round(MIN_REPLAY_DURATION_MS + ratio * (MAX_REPLAY_DURATION_MS - MIN_REPLAY_DURATION_MS));
+}
+
 export function AutoPathsByPosition({
     matchResults,
     alliance = 'blue',
@@ -45,6 +99,10 @@ export function AutoPathsByPosition({
     const [selectedPosition, setSelectedPosition] = useState<PositionIndex>(2); // Default to Hub
     const [selectedMatches, setSelectedMatches] = useState<Set<string>>(new Set());
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [replayTargetId, setReplayTargetId] = useState<string | null>(null);
+    const [isReplayPlaying, setIsReplayPlaying] = useState(false);
+    const [replayElapsedMs, setReplayElapsedMs] = useState(0);
+    const [replaySpeed, setReplaySpeed] = useState<0.5 | 1 | 2>(1);
 
     const isCustomMode = !!customItemsByPosition;
 
@@ -80,18 +138,54 @@ export function AutoPathsByPosition({
         [matchesByPosition, selectedPosition]
     );
 
-    // Get actions to display from selected matches
-    const displayActions = useMemo(() => {
+    const positionItems = useMemo<AutoPathListItem[]>(() => {
         if (isCustomMode) {
-            return (positionMatches as AutoPathListItem[])
-                .filter(item => selectedMatches.has(item.id))
-                .flatMap(item => item.actions || []);
+            return (positionMatches as AutoPathListItem[]).map((item) => ({
+                ...item,
+                actions: item.actions ?? [],
+            }));
         }
 
-        return (positionMatches as MatchResult[])
-            .filter(m => selectedMatches.has(m.matchNumber))
-            .flatMap(m => m.autoPath || []);
-    }, [positionMatches, selectedMatches, isCustomMode]);
+        return (positionMatches as MatchResult[]).map((match) => {
+            const normalizedAlliance =
+                match.alliance === 'red' || match.alliance === 'blue'
+                    ? match.alliance
+                    : undefined;
+
+            return {
+                id: match.matchNumber,
+                label: `Match ${match.matchNumber}`,
+                actions: (match.autoPath ?? []) as PathWaypoint[],
+                alliance: normalizedAlliance,
+                metricText: `${match.autoPoints} pts`,
+                detailText: `${match.autoFuel} fuel scored${
+                    match.autoPath && match.autoPath.length > 0 ? ` • ${match.autoPath.length} actions` : ' • No path data'
+                }`,
+            };
+        });
+    }, [positionMatches, isCustomMode]);
+
+    // Get actions to display from selected matches
+    const displayActions = useMemo(
+        () => positionItems.filter((item) => selectedMatches.has(item.id)).flatMap((item) => item.actions || []),
+        [positionItems, selectedMatches]
+    );
+
+    const replayTarget = useMemo(() => {
+        if (!replayTargetId) return null;
+        return positionItems.find((item) => item.id === replayTargetId) ?? null;
+    }, [positionItems, replayTargetId]);
+
+    const replayActions = useMemo(() => replayTarget?.actions ?? [], [replayTarget]);
+    const replayPathLength = useMemo(() => getAutoPathLength(replayActions), [replayActions]);
+    const replayDurationMs = useMemo(() => getScaledReplayDurationMs(replayPathLength), [replayPathLength]);
+    const replayProgress = replayDurationMs > 0
+        ? Math.min(1, replayElapsedMs / replayDurationMs)
+        : 0;
+    const isReplayInProgress = isReplayPlaying || replayElapsedMs > 0;
+
+    const canvasActions = replayTarget ? replayActions : displayActions;
+    const canvasReplayProgress = replayTarget && isReplayInProgress ? replayProgress : undefined;
 
     // Canvas dimensions - dynamically update based on container size
     const [canvasDimensions, setCanvasDimensions] = useState({ width: 640, height: 320 });
@@ -115,8 +209,14 @@ export function AutoPathsByPosition({
             const next = new Set(prev);
             if (next.has(matchNumber)) {
                 next.delete(matchNumber);
+
+                if (replayTargetId === matchNumber) {
+                    const nextReplayTarget = next.values().next().value ?? null;
+                    setReplayTargetId(nextReplayTarget);
+                }
             } else {
                 next.add(matchNumber);
+                setReplayTargetId(matchNumber);
             }
             return next;
         });
@@ -124,18 +224,104 @@ export function AutoPathsByPosition({
 
     // Select all matches for current position
     const selectAll = () => {
-        if (isCustomMode) {
-            setSelectedMatches(new Set((positionMatches as AutoPathListItem[]).map(item => item.id)));
-            return;
-        }
-
-        setSelectedMatches(new Set((positionMatches as MatchResult[]).map(m => m.matchNumber)));
+        const allIds = positionItems.map((item) => item.id);
+        setSelectedMatches(new Set(allIds));
+        setReplayTargetId(allIds[0] ?? null);
     };
 
     // Clear all selections
     const clearAll = () => {
         setSelectedMatches(new Set());
+        setReplayTargetId(null);
     };
+
+    const handleReplayPlayPause = useCallback(() => {
+        if (!replayTarget || replayActions.length < 2) return;
+
+        if (replayElapsedMs >= replayDurationMs) {
+            setReplayElapsedMs(0);
+            setIsReplayPlaying(true);
+            return;
+        }
+
+        setIsReplayPlaying((previous) => !previous);
+    }, [replayTarget, replayActions.length, replayElapsedMs, replayDurationMs]);
+
+    const handleReplayRestart = useCallback(() => {
+        setReplayElapsedMs(0);
+        setIsReplayPlaying(!!replayTarget && replayActions.length >= 2);
+    }, [replayTarget, replayActions.length]);
+
+    useEffect(() => {
+        if (!isReplayPlaying || !replayTarget || replayActions.length < 2) return;
+
+        const interval = window.setInterval(() => {
+            setReplayElapsedMs((previous) => Math.min(previous + 16 * replaySpeed, replayDurationMs));
+        }, 16);
+
+        return () => window.clearInterval(interval);
+    }, [isReplayPlaying, replayTarget, replayActions.length, replaySpeed, replayDurationMs]);
+
+    useEffect(() => {
+        if (isReplayPlaying && replayElapsedMs >= replayDurationMs) {
+            setIsReplayPlaying(false);
+        }
+    }, [isReplayPlaying, replayElapsedMs, replayDurationMs]);
+
+    useEffect(() => {
+        setReplayElapsedMs(0);
+        setIsReplayPlaying(false);
+    }, [replayTargetId, selectedPosition]);
+
+    useEffect(() => {
+        if (!replayTargetId) return;
+        if (!positionItems.some((item) => item.id === replayTargetId)) {
+            setReplayTargetId(null);
+            setReplayElapsedMs(0);
+            setIsReplayPlaying(false);
+        }
+    }, [positionItems, replayTargetId]);
+
+    const replayStatusText = replayTarget
+        ? `${Math.round((replayDurationMs / 1000) * 10) / 10}s replay`
+        : 'Choose one auto to replay';
+
+    const replayControls = (
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+            <span className="text-xs text-muted-foreground">{replayStatusText}</span>
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReplayPlayPause}
+                disabled={!replayTarget || replayActions.length < 2}
+                className="gap-1"
+            >
+                {isReplayPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                {isReplayPlaying ? 'Pause' : 'Play'}
+            </Button>
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReplayRestart}
+                disabled={!replayTarget || replayActions.length < 2}
+                className="gap-1"
+            >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Restart
+            </Button>
+            {[0.5, 1, 2].map((speed) => (
+                <Button
+                    key={speed}
+                    variant={replaySpeed === speed ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setReplaySpeed(speed as 0.5 | 1 | 2)}
+                    disabled={!replayTarget || replayActions.length < 2}
+                >
+                    {speed}x
+                </Button>
+            ))}
+        </div>
+    );
 
     return (
         <div className="space-y-4">
@@ -150,6 +336,7 @@ export function AutoPathsByPosition({
                             onClick={() => {
                                 setSelectedPosition(pos);
                                 setSelectedMatches(new Set());
+                                setReplayTargetId(null);
                             }}
                             className="flex items-center gap-2 p-4"
                         >
@@ -177,23 +364,26 @@ export function AutoPathsByPosition({
                         alliance="blue"
                         isFieldRotated={false}
                         actionLogSlot={
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={selectAll}
-                                    disabled={positionMatches.length === 0}
-                                >
-                                    Select All
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={clearAll}
-                                    disabled={selectedMatches.size === 0}
-                                >
-                                    Clear
-                                </Button>
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                                {replayControls}
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={selectAll}
+                                        disabled={positionMatches.length === 0}
+                                    >
+                                        Select All
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={clearAll}
+                                        disabled={selectedMatches.size === 0}
+                                    >
+                                        Clear
+                                    </Button>
+                                </div>
                             </div>
                         }
                     />
@@ -215,7 +405,7 @@ export function AutoPathsByPosition({
 
                         <FieldCanvas
                             ref={fieldCanvasRef}
-                            actions={displayActions}
+                            actions={canvasActions}
                             pendingWaypoint={null}
                             drawingPoints={[]}
                             alliance={alliance}
@@ -227,14 +417,23 @@ export function AutoPathsByPosition({
                             isSelectingCollect={false}
                             drawConnectedPaths={true}
                             drawingZoneBounds={undefined}
+                            replayDrawProgress={canvasReplayProgress}
                         />
 
-                        {displayActions.length === 0 && (
+                        {canvasActions.length === 0 && (
                             <div className="absolute inset-0 flex items-center justify-center">
                                 <p className="text-muted-foreground text-sm">
                                     {positionMatches.length === 0
                                         ? (isCustomMode ? 'No autos from this position' : 'No matches from this position')
                                         : (isCustomMode ? 'Select autos to view paths' : 'Select matches to view paths')}
+                                </p>
+                            </div>
+                        )}
+
+                        {replayTarget && replayActions.length < 2 && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <p className="text-muted-foreground text-sm bg-background/80 px-3 py-1 rounded">
+                                    Selected auto has insufficient path data for replay.
                                 </p>
                             </div>
                         )}
@@ -248,7 +447,8 @@ export function AutoPathsByPosition({
                         <h3 className="font-semibold">
                             {START_POSITION_LABELS[selectedPosition]} - Auto Paths
                         </h3>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                            {replayControls}
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -291,7 +491,7 @@ export function AutoPathsByPosition({
                         {/* Path Canvas */}
                         <FieldCanvas
                             ref={fieldCanvasRef}
-                            actions={displayActions}
+                            actions={canvasActions}
                             pendingWaypoint={null}
                             drawingPoints={[]}
                             alliance={alliance}
@@ -303,15 +503,24 @@ export function AutoPathsByPosition({
                             isSelectingCollect={false}
                             drawConnectedPaths={true}
                             drawingZoneBounds={undefined}
+                            replayDrawProgress={canvasReplayProgress}
                         />
 
                         {/* No paths message */}
-                        {displayActions.length === 0 && (
+                        {canvasActions.length === 0 && (
                             <div className="absolute inset-0 flex items-center justify-center">
                                 <p className="text-muted-foreground text-sm">
                                     {positionMatches.length === 0
                                         ? 'No matches from this position'
                                         : 'Select matches to view paths'}
+                                </p>
+                            </div>
+                        )}
+
+                        {replayTarget && replayActions.length < 2 && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <p className="text-muted-foreground text-sm bg-background/80 px-3 py-1 rounded">
+                                    Selected auto has insufficient path data for replay.
                                 </p>
                             </div>
                         )}
@@ -327,8 +536,8 @@ export function AutoPathsByPosition({
                         </p>
                     ) : (
                         <div className="space-y-2">
-                            {(isCustomMode ? (positionMatches as AutoPathListItem[]) : (positionMatches as MatchResult[])).map((item) => {
-                                const id = isCustomMode ? (item as AutoPathListItem).id : (item as MatchResult).matchNumber;
+                            {positionItems.map((item) => {
+                                const id = item.id;
                                 const isSelected = selectedMatches.has(id);
                                 return (
                                     <div
@@ -349,48 +558,28 @@ export function AutoPathsByPosition({
                                                     onClick={(e) => e.stopPropagation()}
                                                 />
                                                 <span className="font-medium">
-                                                    {isCustomMode ? (item as AutoPathListItem).label : `Match ${(item as MatchResult).matchNumber}`}
+                                                    {item.label}
                                                 </span>
-                                                {isCustomMode ? (
-                                                    (item as AutoPathListItem).alliance && (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={cn(
-                                                                'text-xs',
-                                                                (item as AutoPathListItem).alliance === 'red'
-                                                                    ? 'border-red-500 text-red-400'
-                                                                    : 'border-blue-500 text-blue-400'
-                                                            )}
-                                                        >
-                                                            {(item as AutoPathListItem).alliance}
-                                                        </Badge>
-                                                    )
-                                                ) : (
+                                                {item.alliance && (
                                                     <Badge
                                                         variant="outline"
                                                         className={cn(
                                                             'text-xs',
-                                                            (item as MatchResult).alliance === 'red' ? 'border-red-500 text-red-400' : 'border-blue-500 text-blue-400'
+                                                            item.alliance === 'red' ? 'border-red-500 text-red-400' : 'border-blue-500 text-blue-400'
                                                         )}
                                                     >
-                                                        {(item as MatchResult).alliance}
+                                                        {item.alliance}
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <Badge variant="secondary" className="text-xs">
-                                                {isCustomMode
-                                                    ? ((item as AutoPathListItem).metricText ?? `${(item as AutoPathListItem).actions.length} actions`)
-                                                    : `${(item as MatchResult).autoPoints} pts`}
-                                            </Badge>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="secondary" className="text-xs">
+                                                    {item.metricText ?? `${item.actions.length} actions`}
+                                                </Badge>
+                                            </div>
                                         </div>
                                         <div className="text-xs text-muted-foreground ml-6">
-                                            {isCustomMode
-                                                ? ((item as AutoPathListItem).detailText ?? `${(item as AutoPathListItem).actions.length} actions`)
-                                                : `${(item as MatchResult).autoFuel} fuel scored${
-                                                    (item as MatchResult).autoPath && (item as MatchResult).autoPath!.length > 0
-                                                        ? ` • ${(item as MatchResult).autoPath!.length} actions`
-                                                        : ' • No path data'
-                                                }`}
+                                            {item.detailText ?? `${item.actions.length} actions`}
                                         </div>
                                     </div>
                                 );

@@ -21,6 +21,8 @@ import { FieldCanvasHeader } from "./FieldCanvasHeader";
 import { MobileStageControls } from "./MobileStageControls";
 import { DrawingControls } from "./DrawingControls";
 import { FloatingControls } from "./FloatingControls";
+import { Button } from "@/core/components/ui/button";
+import { Play, Pause, RotateCcw } from "lucide-react";
 import type { StrategyAutoRoutine, StrategyStageId, TeamStageSpots } from "@/core/hooks/useMatchStrategy";
 
 interface TeamSlotSpotVisibility {
@@ -37,6 +39,60 @@ interface FieldCanvasProps {
     getTeamSpots?: (teamNumber: number | null, stageId: StrategyStageId) => TeamStageSpots;
     selectedAutoRoutinesBySlot?: (StrategyAutoRoutine | null)[];
 }
+
+const MIN_REPLAY_DURATION_MS = 6000;
+const MAX_REPLAY_DURATION_MS = 20000;
+const MIN_LENGTH_FOR_SCALING = 0.15;
+const MAX_LENGTH_FOR_SCALING = 2.2;
+
+const getWaypointPathLength = (routine: StrategyAutoRoutine): number => {
+    if (!Array.isArray(routine.actions) || routine.actions.length < 2) return 0;
+
+    let totalLength = 0;
+    let previousPoint: { x: number; y: number } | null = null;
+
+    routine.actions.forEach((action) => {
+        const currentPoint = action.position;
+        const pathPoints = Array.isArray(action.pathPoints) && action.pathPoints.length >= 2
+            ? action.pathPoints
+            : null;
+
+        if (pathPoints) {
+            if (previousPoint) {
+                const start = pathPoints[0]!;
+                totalLength += Math.hypot(start.x - previousPoint.x, start.y - previousPoint.y);
+            }
+
+            for (let index = 1; index < pathPoints.length; index += 1) {
+                const previous = pathPoints[index - 1]!;
+                const current = pathPoints[index]!;
+                totalLength += Math.hypot(current.x - previous.x, current.y - previous.y);
+            }
+
+            previousPoint = pathPoints[pathPoints.length - 1] ?? currentPoint;
+            return;
+        }
+
+        if (previousPoint) {
+            totalLength += Math.hypot(currentPoint.x - previousPoint.x, currentPoint.y - previousPoint.y);
+        }
+
+        previousPoint = currentPoint;
+    });
+
+    return totalLength;
+};
+
+const getScaledReplayDurationMs = (pathLength: number): number => {
+    if (pathLength <= MIN_LENGTH_FOR_SCALING) return MIN_REPLAY_DURATION_MS;
+
+    const ratio = Math.min(
+        1,
+        (pathLength - MIN_LENGTH_FOR_SCALING) / (MAX_LENGTH_FOR_SCALING - MIN_LENGTH_FOR_SCALING)
+    );
+
+    return Math.round(MIN_REPLAY_DURATION_MS + ratio * (MAX_REPLAY_DURATION_MS - MIN_REPLAY_DURATION_MS));
+};
 
 const FieldCanvas = ({
     fieldImagePath,
@@ -62,6 +118,9 @@ const FieldCanvas = ({
     const [currentStageId, setCurrentStageId] = useState(stageId);
     const [hideControls, setHideControls] = useState(false);
     const [isolatedAutoSlot, setIsolatedAutoSlot] = useState<number | null>(null);
+    const [isAutoReplayPlaying, setIsAutoReplayPlaying] = useState(false);
+    const [autoReplayElapsedMs, setAutoReplayElapsedMs] = useState(0);
+    const [autoReplaySpeed, setAutoReplaySpeed] = useState<0.5 | 1 | 2>(1);
     const isMobile = useIsMobile();
 
     // Canvas dimensions (shared across all layers) - starts at 0 until image loads
@@ -77,6 +136,31 @@ const FieldCanvas = ({
     const currentStageIndex = Math.max(0, stages.findIndex(stage => stage.id === currentStageId));
     const currentStage = stages[currentStageIndex] || stages[0];
 
+    const visibleAutoRoutines = useMemo(() => {
+        if (currentStageId !== 'autonomous') return [];
+
+        return selectedAutoRoutinesBySlot
+            .map((routine, slotIndex) => ({ routine, slotIndex, team: selectedTeams[slotIndex] }))
+            .filter(({ routine, team, slotIndex }) => {
+                if (!routine || !team) return false;
+                if (routine.teamNumber !== team) return false;
+                if (isolatedAutoSlot !== null && isolatedAutoSlot !== slotIndex) return false;
+                return Array.isArray(routine.actions) && routine.actions.length > 1;
+            })
+            .map(({ routine }) => routine!);
+    }, [currentStageId, selectedAutoRoutinesBySlot, selectedTeams, isolatedAutoSlot]);
+
+    const replayPathLength = useMemo(() => {
+        if (visibleAutoRoutines.length === 0) return 0;
+        return Math.max(...visibleAutoRoutines.map((routine) => getWaypointPathLength(routine)));
+    }, [visibleAutoRoutines]);
+
+    const replayDurationMs = useMemo(() => getScaledReplayDurationMs(replayPathLength), [replayPathLength]);
+    const isAutoReplayInProgress = isAutoReplayPlaying || autoReplayElapsedMs > 0;
+    const autoReplayProgress = currentStageId === 'autonomous' && visibleAutoRoutines.length > 0
+        ? (isAutoReplayInProgress ? Math.min(1, autoReplayElapsedMs / replayDurationMs) : undefined)
+        : undefined;
+
     // Update internal stage when prop changes
     useEffect(() => {
         if (!isFullscreen) {
@@ -91,6 +175,13 @@ const FieldCanvas = ({
     }, [currentStageId]);
 
     useEffect(() => {
+        if (currentStageId !== 'autonomous') {
+            setIsAutoReplayPlaying(false);
+            setAutoReplayElapsedMs(0);
+        }
+    }, [currentStageId]);
+
+    useEffect(() => {
         if (isolatedAutoSlot === null) return;
         const teamNumber = selectedTeams[isolatedAutoSlot];
         const routine = selectedAutoRoutinesBySlot[isolatedAutoSlot];
@@ -98,6 +189,27 @@ const FieldCanvas = ({
             setIsolatedAutoSlot(null);
         }
     }, [isolatedAutoSlot, selectedTeams, selectedAutoRoutinesBySlot]);
+
+    useEffect(() => {
+        setIsAutoReplayPlaying(false);
+        setAutoReplayElapsedMs(0);
+    }, [isolatedAutoSlot, selectedAutoRoutinesBySlot, selectedTeams]);
+
+    useEffect(() => {
+        if (!isAutoReplayPlaying || visibleAutoRoutines.length === 0 || currentStageId !== 'autonomous') return;
+
+        const interval = window.setInterval(() => {
+            setAutoReplayElapsedMs((previous) => Math.min(previous + 16 * autoReplaySpeed, replayDurationMs));
+        }, 16);
+
+        return () => window.clearInterval(interval);
+    }, [isAutoReplayPlaying, visibleAutoRoutines.length, currentStageId, autoReplaySpeed, replayDurationMs]);
+
+    useEffect(() => {
+        if (isAutoReplayPlaying && autoReplayElapsedMs >= replayDurationMs) {
+            setIsAutoReplayPlaying(false);
+        }
+    }, [isAutoReplayPlaying, autoReplayElapsedMs, replayDurationMs]);
 
     // Reset canvas dimensions when transitioning between fullscreen modes
     // This prevents overflow when exiting fullscreen before setupCanvas recalculates
@@ -137,6 +249,7 @@ const FieldCanvas = ({
         getTeamSpots,
         selectedAutoRoutinesBySlot,
         isolatedAutoSlot,
+        autoReplayProgress,
         onCanvasReady: handleCanvasReady,
         onDimensionsChange: setCanvasDimensions
     });
@@ -161,6 +274,23 @@ const FieldCanvas = ({
 
         setIsolatedAutoSlot((prev) => (prev === hitSlot ? null : hitSlot));
     }, [currentStageId, canvasDimensions.width, canvasDimensions.height, selectedTeams, selectedAutoRoutinesBySlot]);
+
+    const handleReplayPlayPause = useCallback(() => {
+        if (currentStageId !== 'autonomous' || visibleAutoRoutines.length === 0) return;
+
+        if (autoReplayElapsedMs >= replayDurationMs) {
+            setAutoReplayElapsedMs(0);
+            setIsAutoReplayPlaying(true);
+            return;
+        }
+
+        setIsAutoReplayPlaying((previous) => !previous);
+    }, [currentStageId, visibleAutoRoutines.length, autoReplayElapsedMs, replayDurationMs]);
+
+    const handleReplayRestart = useCallback(() => {
+        setAutoReplayElapsedMs(0);
+        setIsAutoReplayPlaying(currentStageId === 'autonomous' && visibleAutoRoutines.length > 0);
+    }, [currentStageId, visibleAutoRoutines.length]);
 
     // Save canvas function - composites all layers
     const saveCanvas = useCallback((showAlert = true) => {
@@ -194,6 +324,7 @@ const FieldCanvas = ({
             currentStageId as StrategyStageId,
             selectedAutoRoutinesBySlot,
             isolatedAutoSlot,
+            undefined,
         );
         ctx.drawImage(drawingCanvas, 0, 0);
 
@@ -236,6 +367,48 @@ const FieldCanvas = ({
         selectedAutoRoutinesBySlot,
         isolatedAutoSlot,
     ]);
+
+    const replayStatusText = visibleAutoRoutines.length > 0
+        ? `${Math.round((replayDurationMs / 1000) * 10) / 10}s replay`
+        : 'No auto path selected';
+
+    const replayControls = currentStageId === 'autonomous' ? (
+        <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">{replayStatusText}</span>
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReplayPlayPause}
+                disabled={visibleAutoRoutines.length === 0}
+                className="h-8 gap-1"
+            >
+                {isAutoReplayPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                {isAutoReplayPlaying ? 'Pause' : 'Play'}
+            </Button>
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReplayRestart}
+                disabled={visibleAutoRoutines.length === 0}
+                className="h-8 gap-1"
+            >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Restart
+            </Button>
+            {[0.5, 1, 2].map((speed) => (
+                <Button
+                    key={speed}
+                    variant={autoReplaySpeed === speed ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-8"
+                    disabled={visibleAutoRoutines.length === 0}
+                    onClick={() => setAutoReplaySpeed(speed as 0.5 | 1 | 2)}
+                >
+                    {speed}x
+                </Button>
+            ))}
+        </div>
+    ) : null;
 
     // Canvas drawing hook - only operates on drawing layer
     const { canvasStyle, canvasEventHandlers, undo, canUndo, initializeHistory, saveToHistory } = useCanvasDrawing({
@@ -444,6 +617,12 @@ const FieldCanvas = ({
                     />
                 )}
 
+                {replayControls && (
+                    <div className="px-3 pb-2">
+                        {replayControls}
+                    </div>
+                )}
+
                 <div
                     className="flex-1 flex items-center justify-center p-2 md:p-4 bg-green-50 dark:bg-green-950/20 overflow-hidden relative"
                     style={{ touchAction: 'none' }}
@@ -494,6 +673,12 @@ const FieldCanvas = ({
                 onToggleFullscreen={toggleFullscreen}
                 onToggleHideControls={() => setHideControls(!hideControls)}
             />
+
+            {replayControls && (
+                <div className="mt-2 px-2 py-2 border rounded-md bg-background/60">
+                    {replayControls}
+                </div>
+            )}
 
             <div
                 ref={containerRef}

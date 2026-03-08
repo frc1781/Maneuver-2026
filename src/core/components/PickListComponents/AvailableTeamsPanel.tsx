@@ -35,9 +35,13 @@ interface AvailableTeamsPanelProps {
     searchFilter: string;
     sortBy: PickListSortOption;
     activeFilterIds: string[];
+    defenseTargetTeamFilter: string;
+    hideAllianceAssignedTeams: boolean;
     onSearchChange: (value: string) => void;
     onSortChange: (value: PickListSortOption) => void;
     onFilterChange: (value: string[]) => void;
+    onDefenseTargetTeamFilterChange: (value: string) => void;
+    onToggleHideAllianceAssignedTeams: (hide: boolean) => void;
     onAddTeamToList: (team: TeamStats, listId: number) => void;
     onAddTeamToAlliance?: (teamNumber: number, allianceId: number) => void;
 }
@@ -50,13 +54,18 @@ export const AvailableTeamsPanel = ({
     searchFilter,
     sortBy,
     activeFilterIds,
+    defenseTargetTeamFilter,
+    hideAllianceAssignedTeams,
     onSearchChange,
     onSortChange,
     onFilterChange,
+    onDefenseTargetTeamFilterChange,
+    onToggleHideAllianceAssignedTeams,
     onAddTeamToList,
     onAddTeamToAlliance
 }: AvailableTeamsPanelProps) => {
     const activeFilterCount = activeFilterIds.length;
+    const hasDefenseTargetTeam = /^\d+$/.test(defenseTargetTeamFilter.trim());
 
     const toggleFilter = (filterId: string, checked: boolean | "indeterminate") => {
         if (checked === "indeterminate") return;
@@ -133,80 +142,115 @@ export const AvailableTeamsPanel = ({
                     />
                     <SortSelector sortBy={sortBy} onSortChange={onSortChange} />
                     {filterOptions.length > 0 && (
-                        <div className="flex items-center justify-between rounded-md border p-3">
-                            <p className="text-sm font-medium">Team Filters</p>
-                            <div className="flex items-center gap-2">
-                                <Dialog>
-                                    <DialogTrigger asChild>
-                                        <Button variant="outline" size="sm" className="gap-2">
-                                            <Filter className="h-4 w-4" />
-                                            Filters
-                                            {activeFilterCount > 0 && (
-                                                <Badge variant="secondary" className="h-5 min-w-5 px-1.5">
-                                                    {activeFilterCount}
-                                                </Badge>
-                                            )}
-                                        </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-md">
-                                        <DialogHeader>
-                                            <DialogTitle>Team Filters</DialogTitle>
-                                        </DialogHeader>
-                                        <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
-                                            {Object.entries(groupedFilterOptions).map(([groupName, options]) => (
-                                                <div key={groupName} className="space-y-3">
-                                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                                        {groupName}
-                                                    </p>
-                                                    {options.map((option) => {
-                                                        const checkboxId = `pick-list-filter-dialog-${option.id}`;
-                                                        const selectionMode = filterGroupSelectionModes[groupName] || "multi";
-                                                        const isSelected = activeFilterIds.includes(option.id);
-                                                        return (
-                                                            <div key={option.id} className="space-y-1">
-                                                                <div className="flex items-start gap-2">
-                                                                    {selectionMode === "single" ? (
-                                                                        <input
-                                                                            id={checkboxId}
-                                                                            type="radio"
-                                                                            name={`pick-list-group-${groupName}`}
-                                                                            checked={isSelected}
-                                                                            onChange={() => selectFilter(option.id)}
-                                                                            className="mt-0.5 h-4 w-4 border-input text-primary accent-primary"
-                                                                        />
-                                                                    ) : (
-                                                                        <Checkbox
-                                                                            id={checkboxId}
-                                                                            checked={isSelected}
-                                                                            onCheckedChange={(checked) => toggleFilter(option.id, checked)}
-                                                                        />
-                                                                    )}
-                                                                    <Label htmlFor={checkboxId} className="text-sm leading-snug">
-                                                                        {option.label}
-                                                                    </Label>
-                                                                </div>
-                                                                {option.description && (
-                                                                    <p className="ml-6 text-xs text-muted-foreground">{option.description}</p>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="flex justify-end">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={handleClearFilters}
-                                                disabled={activeFilterCount === 0}
-                                            >
-                                                Clear filters
+                        <div className="space-y-2 rounded-md border p-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-medium">Team Filters</p>
+                                <div className="flex items-center gap-2">
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline" size="sm" className="gap-2">
+                                                <Filter className="h-4 w-4" />
+                                                Filters
+                                                {activeFilterCount > 0 && (
+                                                    <Badge variant="secondary" className="h-5 min-w-5 px-1.5">
+                                                        {activeFilterCount}
+                                                    </Badge>
+                                                )}
                                             </Button>
-                                        </div>
-                                    </DialogContent>
-                                </Dialog>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-md">
+                                            <DialogHeader>
+                                                <DialogTitle>Team Filters</DialogTitle>
+                                            </DialogHeader>
+                                            <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+                                                {Object.entries(groupedFilterOptions).map(([groupName, options]) => (
+                                                    <div key={groupName} className="space-y-3">
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                            {groupName}
+                                                        </p>
+                                                        {options.map((option) => {
+                                                            const checkboxId = `pick-list-filter-dialog-${option.id}`;
+                                                            const selectionMode = filterGroupSelectionModes[groupName] || "multi";
+                                                            const isSelected = activeFilterIds.includes(option.id);
+                                                            const isDefenseFilterGroup = groupName === "Defense vs Team";
+                                                            const isDisabled = isDefenseFilterGroup && !hasDefenseTargetTeam;
+                                                            return (
+                                                                <div key={option.id} className="space-y-1">
+                                                                    <div className="flex items-start gap-2">
+                                                                        {selectionMode === "single" ? (
+                                                                            <input
+                                                                                id={checkboxId}
+                                                                                type="radio"
+                                                                                name={`pick-list-group-${groupName}`}
+                                                                                checked={isSelected}
+                                                                                onChange={() => selectFilter(option.id)}
+                                                                                disabled={isDisabled}
+                                                                                className="mt-0.5 h-4 w-4 border-input text-primary accent-primary"
+                                                                            />
+                                                                        ) : (
+                                                                            <Checkbox
+                                                                                id={checkboxId}
+                                                                                checked={isSelected}
+                                                                                disabled={isDisabled}
+                                                                                onCheckedChange={(checked) => toggleFilter(option.id, checked)}
+                                                                            />
+                                                                        )}
+                                                                        <Label htmlFor={checkboxId} className="text-sm leading-snug">
+                                                                            {option.label}
+                                                                        </Label>
+                                                                    </div>
+                                                                    {option.description && (
+                                                                        <p className="ml-6 text-xs text-muted-foreground">{option.description}</p>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+
+                                                        {groupName === "Defense vs Team" && (
+                                                            <div className="space-y-1">
+                                                                <Label htmlFor="pick-list-defense-target-team" className="text-sm">
+                                                                    Defended: Team #
+                                                                </Label>
+                                                                <Input
+                                                                    id="pick-list-defense-target-team"
+                                                                    inputMode="numeric"
+                                                                    pattern="[0-9]*"
+                                                                    placeholder="e.g. 3314"
+                                                                    value={defenseTargetTeamFilter}
+                                                                    onChange={(event) => {
+                                                                        const numericOnly = event.target.value.replace(/\D/g, "");
+                                                                        onDefenseTargetTeamFilterChange(numericOnly);
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex justify-end">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={handleClearFilters}
+                                                    disabled={activeFilterCount === 0}
+                                                >
+                                                    Clear filters
+                                                </Button>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id="hide-alliance-assigned-teams"
+                                    checked={hideAllianceAssignedTeams}
+                                    onCheckedChange={(checked) => onToggleHideAllianceAssignedTeams(checked === true)}
+                                />
+                                <Label htmlFor="hide-alliance-assigned-teams" className="text-sm font-normal cursor-pointer">
+                                    Hide alliance-assigned teams
+                                </Label>
                             </div>
                         </div>
                     )}

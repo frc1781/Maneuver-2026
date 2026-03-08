@@ -40,7 +40,11 @@ export interface PickListFilterOption {
     label: string;
     description?: string;
     group?: string;
-    predicate: (team: TeamStats) => boolean;
+    predicate: (team: TeamStats, context?: PickListFilterContext) => boolean;
+}
+
+export interface PickListFilterContext {
+    defendedTeamNumber?: number | null;
 }
 
 export type PickListFilterGroupSelectionMode = "single" | "multi";
@@ -52,6 +56,7 @@ export type PickListFilterGroupSelectionMode = "single" | "multi";
 export const filterGroupSelectionModes: Record<string, PickListFilterGroupSelectionMode> = {
     "Shooting Style": "single",
     Accuracy: "single",
+    "Defense vs Team": "single",
 };
 
 const CLIMB_SUCCESS_THRESHOLD = 50;
@@ -120,6 +125,32 @@ const hasAccuracySelection = (team: TeamStats): boolean => {
         + getTeamNumber(team, "accuracyFewRate")
         + getTeamNumber(team, "accuracyLittleRate");
     return totalSelectionRate > 0;
+};
+
+interface DefenseByTargetSummary {
+    attempts?: number;
+    very?: number;
+    somewhat?: number;
+    not?: number;
+    effectivenessScore?: number;
+}
+
+const getDefenseByTargetSummary = (team: TeamStats, defendedTeamNumber?: number | null): DefenseByTargetSummary | null => {
+    if (!defendedTeamNumber || !Number.isFinite(defendedTeamNumber) || defendedTeamNumber <= 0) {
+        return null;
+    }
+
+    const defenseByTarget = (team as Record<string, unknown>).defenseByTarget as Record<string, DefenseByTargetSummary> | undefined;
+    if (!defenseByTarget || typeof defenseByTarget !== "object") {
+        return null;
+    }
+
+    const summary = defenseByTarget[String(defendedTeamNumber)];
+    if (!summary || typeof summary !== "object") {
+        return null;
+    }
+
+    return summary;
 };
 
 /**
@@ -330,6 +361,36 @@ export const filterOptions: PickListFilterOption[] = [
         description: "Includes teams that frequently play thief role.",
         group: "Roles",
         predicate: (team) => hasRoleRate(team, "roleActiveThiefRate") || hasRoleRate(team, "roleInactiveThiefRate"),
+    },
+    {
+        id: "defended-team-any",
+        label: "Defended target team (any effectiveness)",
+        description: "Requires team number input. Includes teams that defended that specific team at least once.",
+        group: "Defense vs Team",
+        predicate: (team, context) => {
+            const summary = getDefenseByTargetSummary(team, context?.defendedTeamNumber);
+            return (summary?.attempts || 0) > 0;
+        },
+    },
+    {
+        id: "defended-team-somewhat-plus",
+        label: "Defended target team (somewhat+)",
+        description: "Requires team number input. Includes teams with at least one somewhat or very effective defense vs that team.",
+        group: "Defense vs Team",
+        predicate: (team, context) => {
+            const summary = getDefenseByTargetSummary(team, context?.defendedTeamNumber);
+            return ((summary?.somewhat || 0) + (summary?.very || 0)) > 0;
+        },
+    },
+    {
+        id: "defended-team-very",
+        label: "Defended target team (very effective)",
+        description: "Requires team number input. Includes teams with at least one very effective defense vs that team.",
+        group: "Defense vs Team",
+        predicate: (team, context) => {
+            const summary = getDefenseByTargetSummary(team, context?.defendedTeamNumber);
+            return (summary?.very || 0) > 0;
+        },
     },
 ];
 
