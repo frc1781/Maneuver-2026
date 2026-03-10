@@ -346,10 +346,10 @@ export function TeamStatsPage(props: TeamStatsPageProps) {
                 </div>
 
                 {/* Selectors Row */}
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6 pt-2">
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-4 mb-6 pt-2">
+                    <div className="flex items-center gap-2 min-w-0">
                         <label className="font-medium shrink-0">Select Team:</label>
-                        <div className="min-w-[120px] max-w-[200px]">
+                        <div className="w-full min-w-0 sm:min-w-30 sm:max-w-50">
                             <GenericSelector
                                 label="Select Team"
                                 value={selectedTeam}
@@ -361,9 +361,9 @@ export function TeamStatsPage(props: TeamStatsPageProps) {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                         <label className="font-medium shrink-0">Compare to:</label>
-                        <div className="min-w-[120px] max-w-[200px]">
+                        <div className="w-full min-w-0 sm:min-w-30 sm:max-w-50">
                             <GenericSelector
                                 label="Compare Team"
                                 value={compareTeam}
@@ -376,9 +376,9 @@ export function TeamStatsPage(props: TeamStatsPageProps) {
                     </div>
 
                     {availableEvents.length > 0 && (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                             <label className="font-medium shrink-0">Event:</label>
-                            <div className="min-w-[140px] max-w-[250px]">
+                            <div className="w-full min-w-0 sm:min-w-35 sm:max-w-62.5">
                                 <GenericSelector
                                     label="Select Event"
                                     value={selectedEvent}
