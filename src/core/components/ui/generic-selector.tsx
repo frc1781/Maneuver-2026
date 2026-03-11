@@ -59,13 +59,12 @@ export const GenericSelector = (props: GenericSelectorProps) => {
   const getDisplayText = (val: string) => {
     if (!val) return placeholder;
     if (val === "none") return buttonDisplayFormat ? buttonDisplayFormat(val) : "None";
-    if (val === "all") return "All events";
     return buttonDisplayFormat ? buttonDisplayFormat(val) : displayFormat(val);
   };
 
   const getMultiDisplayText = (values: string[]) => {
     if (values.length === 0) return placeholder;
-    if (values.includes("all")) return "All events";
+    if (values.includes("all")) return getDisplayText("all");
     if (values.length === 1) return getDisplayText(values[0] || "");
     return `${values.length} selected`;
   };
@@ -97,7 +96,7 @@ export const GenericSelector = (props: GenericSelectorProps) => {
               <div className="space-y-2">
                 {availableOptions.map((option) => {
                   const selected = selectedValues.includes(option);
-                  const buttonLabel = option === "all" ? "All events" : displayFormat(option);
+                  const buttonLabel = displayFormat(option);
 
                   return (
                     <Button
@@ -140,7 +139,7 @@ export const GenericSelector = (props: GenericSelectorProps) => {
           <div className="max-h-72 overflow-y-auto space-y-1">
             {availableOptions.map((option) => {
               const selected = selectedValues.includes(option);
-              const optionLabel = option === "all" ? "All events" : displayFormat(option);
+              const optionLabel = displayFormat(option);
 
               return (
                 <Button
@@ -208,7 +207,7 @@ export const GenericSelector = (props: GenericSelectorProps) => {
                     )}
                     onClick={() => props.onValueChange("all")}
                   >
-                    All events
+                    {displayFormat("all")}
                   </Button>
                 </SheetClose>
               )}
@@ -244,7 +243,7 @@ export const GenericSelector = (props: GenericSelectorProps) => {
       </SelectTrigger>
       <SelectContent>
         {availableOptions.includes("none") && <SelectItem value="none">{displayFormat("none")}</SelectItem>}
-        {availableOptions.includes("all") && <SelectItem value="all">All events</SelectItem>}
+        {availableOptions.includes("all") && <SelectItem value="all">{displayFormat("all")}</SelectItem>}
         {availableOptions.filter((option) => option !== "all" && option !== "none").map((option) => (
           <SelectItem key={option} value={option}>
             {displayFormat(option)}

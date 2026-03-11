@@ -426,6 +426,7 @@ export function TeamStatsPage(props: TeamStatsPageProps) {
                                     availableOptions={["all", ...availableEvents]}
                                     onValuesChange={setSelectedEvents}
                                     placeholder="All events"
+                                    displayFormat={(value: string) => value === "all" ? "All Events" : value}
                                     className="bg-background border-muted-foreground/20"
                                 />
                             </div>

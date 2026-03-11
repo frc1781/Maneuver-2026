@@ -75,8 +75,10 @@ export const useTeamStats = () => {
                 ? [...new Set(eventFilter.filter((key): key is string => !!key && key !== 'all'))]
                 : (eventFilter && eventFilter !== 'all' ? [eventFilter] : []);
 
-            if (typeof eventFilter === 'string' && eventFilter !== "all") {
-                entries = await loadScoutingEntriesByTeamAndEvent(teamNum, eventFilter);
+            const singleEventKey = selectedEventKeys[0];
+
+            if (selectedEventKeys.length === 1 && singleEventKey) {
+                entries = await loadScoutingEntriesByTeamAndEvent(teamNum, singleEventKey);
             } else {
                 entries = await loadScoutingEntriesByTeam(teamNum);
                 if (selectedEventKeys.length > 0) {

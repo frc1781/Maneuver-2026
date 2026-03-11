@@ -67,7 +67,7 @@ export const StrategyHeader = ({
                     availableOptions={["all", ...availableEvents]}
                     onValuesChange={onEventChange}
                     placeholder="All Events"
-                    displayFormat={(val: string) => val}
+                    displayFormat={(val: string) => val === "all" ? "All Events" : val}
                     className="w-48"
                 />
 
