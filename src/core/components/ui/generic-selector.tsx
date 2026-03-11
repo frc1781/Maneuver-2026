@@ -64,6 +64,7 @@ export const GenericSelector = (props: GenericSelectorProps) => {
   const getDisplayText = (val: string) => {
     if (!val) return placeholder;
     if (val === "none") return buttonDisplayFormat ? buttonDisplayFormat(val) : "None";
+    if (val === "all") return buttonDisplayFormat ? buttonDisplayFormat(val) : "All";
     return buttonDisplayFormat ? buttonDisplayFormat(val) : displayFormat(val);
   };
 
