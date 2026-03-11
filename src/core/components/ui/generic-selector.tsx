@@ -35,11 +35,16 @@ function toggleMultiSelection(currentValues: string[], nextValue: string): strin
   }
 
   const withoutAll = currentValues.filter((value) => value !== "all");
+
+  let updatedValues: string[];
   if (withoutAll.includes(nextValue)) {
-    return withoutAll.filter((value) => value !== nextValue);
+    updatedValues = withoutAll.filter((value) => value !== nextValue);
+  } else {
+    updatedValues = [...withoutAll, nextValue];
   }
 
-  return [...withoutAll, nextValue];
+  // Keep at least one selection to avoid inconsistent empty-state UI.
+  return updatedValues.length === 0 ? ["all"] : updatedValues;
 }
 
 export const GenericSelector = (props: GenericSelectorProps) => {
