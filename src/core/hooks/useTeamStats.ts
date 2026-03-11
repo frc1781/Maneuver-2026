@@ -64,24 +64,32 @@ export const useTeamStats = () => {
     /**
      * Calculate stats for a specific team and optional event
      */
-    const calculateStats = useCallback(async (teamNumber: string, eventFilter?: string): Promise<TeamStats | null> => {
+    const calculateStats = useCallback(async (teamNumber: string, eventFilter?: string | string[]): Promise<TeamStats | null> => {
         if (!teamNumber) return null;
 
         try {
             let entries: ScoutingEntryBase[];
             const teamNum = parseInt(teamNumber);
 
-            if (eventFilter && eventFilter !== "all") {
+            const selectedEventKeys = Array.isArray(eventFilter)
+                ? [...new Set(eventFilter.filter((key): key is string => !!key && key !== 'all'))]
+                : (eventFilter && eventFilter !== 'all' ? [eventFilter] : []);
+
+            if (typeof eventFilter === 'string' && eventFilter !== "all") {
                 entries = await loadScoutingEntriesByTeamAndEvent(teamNum, eventFilter);
             } else {
                 entries = await loadScoutingEntriesByTeam(teamNum);
+                if (selectedEventKeys.length > 0) {
+                    const selectedEventKeySet = new Set(selectedEventKeys);
+                    entries = entries.filter(entry => selectedEventKeySet.has(entry.eventKey));
+                }
             }
 
             if (entries.length === 0) {
                 // Return a basic object with matchesPlayed: 0
                 return {
                     teamNumber: teamNum,
-                    eventKey: eventFilter || '',
+                    eventKey: typeof eventFilter === 'string' ? eventFilter : '',
                     matchCount: 0,
                     totalPoints: 0,
                     autoPoints: 0,

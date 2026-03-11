@@ -15,22 +15,58 @@ import { StrategyConfig, ColumnFilter, TeamData, AggregationType } from "@/core/
 export interface UseTeamStatisticsResult {
     teamStats: TeamData[];
     filteredTeamStats: TeamData[];
+    availableEvents: string[];
     isLoading: boolean;
     error: Error | null;
 }
 
+function normalizeEventFilter(eventFilter: string | string[] | undefined): string[] {
+    if (!eventFilter) {
+        return [];
+    }
+
+    if (Array.isArray(eventFilter)) {
+        return [...new Set(eventFilter.filter((eventKey): eventKey is string => !!eventKey && eventKey !== 'all'))];
+    }
+
+    if (eventFilter === 'all') {
+        return [];
+    }
+
+    return [eventFilter];
+}
+
 export const useTeamStatistics = (
-    eventKey: string | undefined,
+    eventFilter: string | string[] | undefined,
     config: StrategyConfig,
     columnFilters: Record<string, ColumnFilter>,
     aggregationType: AggregationType = 'average'
 ): UseTeamStatisticsResult => {
+    const selectedEventKeys = useMemo(() => normalizeEventFilter(eventFilter), [eventFilter]);
+    const singleEventKey = selectedEventKeys.length === 1 ? selectedEventKeys[0] : undefined;
+
+    // Always load unfiltered stats for stable event option lists.
+    const { teamStats: allEventsTeamStats } = useAllTeamStats();
+
     // Get centralized team stats
-    const { teamStats: allTeamStats, isLoading, error } = useAllTeamStats(eventKey);
+    const { teamStats: allTeamStats, isLoading, error } = useAllTeamStats(singleEventKey);
+
+    const availableEvents = useMemo(() => {
+        return Array.from(new Set(allEventsTeamStats.map((team) => team.eventKey).filter(Boolean))).sort();
+    }, [allEventsTeamStats]);
+
+    const filteredSourceTeamStats = useMemo(() => {
+        if (selectedEventKeys.length === 0) {
+            return allTeamStats;
+        }
+
+        const selectedSet = new Set(selectedEventKeys);
+        return allTeamStats.filter((team) => selectedSet.has(team.eventKey));
+    }, [allTeamStats, selectedEventKeys]);
 
     // Convert TeamStats to TeamData format (for backwards compatibility)
-    const teamStats = useMemo(() => {
-        return allTeamStats.map(stats => {
+    const mappedTeamStats = useMemo(() => {
+        return filteredSourceTeamStats.map(stats => {
             const teamData: TeamData = {
                 teamNumber: stats.teamNumber,
                 eventKey: stats.eventKey,
@@ -51,7 +87,63 @@ export const useTeamStatistics = (
 
             return teamData;
         });
-    }, [allTeamStats, config.columns, aggregationType]);
+    }, [filteredSourceTeamStats, config.columns, aggregationType]);
+
+    const teamStats = useMemo(() => {
+        if (selectedEventKeys.length === 1) {
+            return mappedTeamStats;
+        }
+
+        // "All events" should show one row per team, aggregated across events.
+        const byTeam = new Map<number, TeamData[]>();
+        for (const row of mappedTeamStats) {
+            const rows = byTeam.get(row.teamNumber) ?? [];
+            rows.push(row);
+            byTeam.set(row.teamNumber, rows);
+        }
+
+        const consolidated: TeamData[] = [];
+
+        for (const [teamNumber, rows] of byTeam.entries()) {
+            const merged: TeamData = {
+                teamNumber,
+                eventKey: 'all',
+                matchCount: rows.reduce((sum, row) => {
+                    const count = typeof row.matchCount === 'number' ? row.matchCount : 0;
+                    return sum + count;
+                }, 0),
+            };
+
+            const allKeys = new Set<string>();
+            rows.forEach(row => {
+                Object.keys(row).forEach(key => allKeys.add(key));
+            });
+
+            for (const key of allKeys) {
+                if (key === 'teamNumber' || key === 'eventKey' || key === 'matchCount') {
+                    continue;
+                }
+
+                const numericValues = rows
+                    .map(row => row[key])
+                    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+
+                if (numericValues.length > 0) {
+                    merged[key] = aggregateArray(numericValues, aggregationType);
+                    continue;
+                }
+
+                const firstDefined = rows.find(row => row[key] !== undefined)?.[key];
+                if (firstDefined !== undefined) {
+                    merged[key] = firstDefined;
+                }
+            }
+
+            consolidated.push(merged);
+        }
+
+        return consolidated.sort((a, b) => a.teamNumber - b.teamNumber);
+    }, [selectedEventKeys, mappedTeamStats, aggregationType]);
 
     // Apply column filters
     const filteredTeamStats = useMemo(() => {
@@ -79,7 +171,7 @@ export const useTeamStatistics = (
         });
     }, [teamStats, columnFilters]);
 
-    return { teamStats, filteredTeamStats, isLoading, error };
+    return { teamStats, filteredTeamStats, availableEvents, isLoading, error };
 };
 
 /**

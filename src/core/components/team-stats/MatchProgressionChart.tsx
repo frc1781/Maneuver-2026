@@ -1,12 +1,13 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/core/components/ui/card";
 import { GenericSelector } from "@/core/components/ui/generic-selector";
 import { ChartContainer } from "@/core/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp } from "lucide-react";
 
 interface MatchResult {
     matchNumber: string;
+    eventKey?: string;
     totalPoints: number;
     autoPoints: number;
     teleopPoints: number;
@@ -25,37 +26,6 @@ interface MatchProgressionChartProps {
     compareTeamNumber?: number;
 }
 
-// Custom hook for container dimensions
-function useContainerDimensions() {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-
-    const updateDimensions = useCallback(() => {
-        if (containerRef.current) {
-            const { width, height } = containerRef.current.getBoundingClientRect();
-            setDimensions({ width, height });
-        }
-    }, []);
-
-    useEffect(() => {
-        updateDimensions();
-
-        const resizeObserver = new ResizeObserver(() => {
-            updateDimensions();
-        });
-
-        if (containerRef.current) {
-            resizeObserver.observe(containerRef.current);
-        }
-
-        return () => {
-            resizeObserver.disconnect();
-        };
-    }, [updateDimensions]);
-
-    return { containerRef, ...dimensions };
-}
-
 const metricOptions = [
     { key: 'totalPoints', label: 'Total Points' },
     { key: 'autoPoints', label: 'Auto Points' },
@@ -67,6 +37,65 @@ const metricOptions = [
     { key: 'climbLevel', label: 'Climb Level' },
 ];
 
+const PRIMARY_EVENT_COLORS = [
+    "hsl(0, 0%, 100%)",
+    "hsl(170, 80%, 55%)",
+    "hsl(28, 95%, 60%)",
+    "hsl(92, 70%, 58%)",
+];
+
+const COMPARE_EVENT_COLORS = [
+    "hsl(270, 95%, 75%)",
+    "hsl(305, 80%, 68%)",
+    "hsl(245, 85%, 72%)",
+    "hsl(330, 78%, 70%)",
+];
+
+interface ChartSeries {
+    key: string;
+    label: string;
+    color: string;
+    dashed: boolean;
+}
+
+function getEventKey(match: MatchResult): string {
+    if (typeof match.eventKey === 'string' && match.eventKey.trim() !== '') {
+        return match.eventKey;
+    }
+    return 'unknown-event';
+}
+
+function getMatchNumber(match: MatchResult): number {
+    const parsed = Number.parseInt(String(match.matchNumber), 10);
+    if (Number.isFinite(parsed)) {
+        return parsed;
+    }
+    return 0;
+}
+
+function getMetricValue(match: MatchResult, metricKey: string): number {
+    const raw = match[metricKey as keyof MatchResult];
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+        return raw;
+    }
+    return 0;
+}
+
+function buildSeries(
+    matches: MatchResult[],
+    teamNumber: number,
+    colors: string[],
+    dashed: boolean
+): ChartSeries[] {
+    const events = [...new Set(matches.map(getEventKey))].sort();
+    return events.map((eventKey, index) => ({
+        key: `team_${teamNumber}_${eventKey}`,
+        label: `Team ${teamNumber} (${eventKey})`,
+        color: colors[index % colors.length] ?? "hsl(0, 0%, 100%)",
+        dashed,
+    }));
+}
+
 export function MatchProgressionChart({
     matchResults,
     compareMatchResults,
@@ -74,88 +103,102 @@ export function MatchProgressionChart({
     compareTeamNumber
 }: MatchProgressionChartProps) {
     const [selectedMetric, setSelectedMetric] = useState('totalPoints');
-    const { containerRef, width, height } = useContainerDimensions();
 
-    // Prepare chart data
-    const chartData = matchResults.map((match, index) => {
-        const compareMatch = compareMatchResults?.[index];
-        return {
-            match: match.matchNumber,
-            matchIndex: index + 1,
-            [teamNumber]: match[selectedMetric as keyof MatchResult] || 0,
-            ...(compareMatch && compareTeamNumber ? {
-                [compareTeamNumber]: compareMatch[selectedMetric as keyof MatchResult] || 0
-            } : {})
+    const primarySeries = buildSeries(matchResults, teamNumber, PRIMARY_EVENT_COLORS, false);
+    const compareSeries = compareTeamNumber
+        ? buildSeries(compareMatchResults ?? [], compareTeamNumber, COMPARE_EVENT_COLORS, true)
+        : [];
+    const allSeries = [...primarySeries, ...compareSeries];
+
+    // Prepare chart data: one row per match number, series split by event key.
+    const chartRows = new Map<number, Record<string, number | string>>();
+
+    for (const match of matchResults) {
+        const matchNumber = getMatchNumber(match);
+        const eventKey = getEventKey(match);
+        const row = chartRows.get(matchNumber) ?? { match: matchNumber };
+        row[`team_${teamNumber}_${eventKey}`] = getMetricValue(match, selectedMetric);
+        chartRows.set(matchNumber, row);
+    }
+
+    if (compareTeamNumber && compareMatchResults) {
+        for (const match of compareMatchResults) {
+            const matchNumber = getMatchNumber(match);
+            const eventKey = getEventKey(match);
+            const row = chartRows.get(matchNumber) ?? { match: matchNumber };
+            row[`team_${compareTeamNumber}_${eventKey}`] = getMetricValue(match, selectedMetric);
+            chartRows.set(matchNumber, row);
+        }
+    }
+
+    const chartData = [...chartRows.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([, row]) => row);
+
+    const chartConfig = allSeries.reduce<Record<string, { label: string; color: string }>>((config, series) => {
+        config[series.key] = {
+            label: series.label,
+            color: series.color,
         };
-    });
-
-    const chartConfig = {
-        [teamNumber]: {
-            label: `Team ${teamNumber}`,
-            color: "hsl(0, 0%, 100%)", // White for main team
-        },
-        ...(compareTeamNumber ? {
-            [compareTeamNumber]: {
-                label: `Team ${compareTeamNumber}`,
-                color: "hsl(270, 95%, 75%)", // Purple for comparison team
-            }
-        } : {})
-    };
+        return config;
+    }, {});
 
     const metricLabel = metricOptions.find(m => m.key === selectedMetric)?.label || selectedMetric;
+    const eventCount = primarySeries.length;
+    const description = eventCount > 1
+        ? `Performance trends across matches (${eventCount} events shown separately)`
+        : 'Performance trends across matches';
 
     return (
         <Card>
-            <CardHeader>
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <CardHeader className="space-y-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                         <CardTitle className="flex items-center gap-2">
                             <TrendingUp className="h-5 w-5" />
                             Match Progression
                         </CardTitle>
                         <CardDescription>
-                            Performance trends across matches
+                            {description}
                         </CardDescription>
                     </div>
-                    <div className="flex flex-wrap items-center gap-4">
-                        {/* Metric Selector */}
-                        <div className="flex items-center gap-2">
-                            <label className="text-sm font-medium whitespace-nowrap">Metric:</label>
-                            <GenericSelector
-                                label="Select Metric"
-                                value={selectedMetric}
-                                availableOptions={metricOptions.map(m => m.key)}
-                                onValueChange={setSelectedMetric}
-                                placeholder="Select metric"
-                                displayFormat={(key: string) => metricOptions.find(m => m.key === key)?.label || key}
-                                className="w-48"
-                            />
-                        </div>
-                        {/* Legend */}
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
-                                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: chartConfig[teamNumber]?.color }} />
-                                <span className="text-sm font-medium">Team {teamNumber}</span>
-                            </div>
-                            {compareTeamNumber && (
-                                <div className="flex items-center gap-2">
-                                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: chartConfig[compareTeamNumber]?.color }} />
-                                    <span className="text-sm font-medium">Team {compareTeamNumber}</span>
-                                </div>
-                            )}
-                        </div>
+
+                    <div className="flex items-center gap-2 lg:pt-0.5">
+                        <label className="text-sm font-medium whitespace-nowrap">Metric:</label>
+                        <GenericSelector
+                            label="Select Metric"
+                            value={selectedMetric}
+                            availableOptions={metricOptions.map(m => m.key)}
+                            onValueChange={setSelectedMetric}
+                            placeholder="Select metric"
+                            displayFormat={(key: string) => metricOptions.find(m => m.key === key)?.label || key}
+                            className="w-48"
+                        />
                     </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    {allSeries.map(series => (
+                        <div key={series.key} className="flex items-center gap-2">
+                            <div
+                                className="h-3 w-3 rounded-full"
+                                style={{
+                                    backgroundColor: series.color,
+                                    opacity: series.dashed ? 0.8 : 1,
+                                }}
+                            />
+                            <span className="text-sm font-medium">{series.label}</span>
+                        </div>
+                    ))}
                 </div>
             </CardHeader>
             <CardContent>
                 <div className="h-87.5 w-full">
                     <ChartContainer config={chartConfig} className="h-full w-full aspect-auto!">
-                        <div ref={containerRef} className="h-full w-full">
-                            {width > 0 && height > 0 ? (
+                        <div className="h-full w-full">
+                            <ResponsiveContainer width="100%" height="100%">
                                 <LineChart
                                     data={chartData}
-                                    width={width}
-                                    height={height}
                                     margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
                                 >
                                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -195,32 +238,22 @@ export function MatchProgressionChart({
                                             );
                                         }}
                                     />
-                                    <Line
-                                        type="monotone"
-                                        dataKey={teamNumber.toString()}
-                                        stroke={chartConfig[teamNumber]?.color}
-                                        strokeWidth={2}
-                                        dot={{ r: 4, fill: chartConfig[teamNumber]?.color, stroke: chartConfig[teamNumber]?.color, strokeWidth: 2 }}
-                                        activeDot={{ r: 6, fill: chartConfig[teamNumber]?.color, stroke: chartConfig[teamNumber]?.color, strokeWidth: 2 }}
-                                        connectNulls={false}
-                                    />
-                                    {compareTeamNumber && (
+                                    {allSeries.map(series => (
                                         <Line
+                                            key={series.key}
                                             type="monotone"
-                                            dataKey={compareTeamNumber.toString()}
-                                            stroke={chartConfig[compareTeamNumber]?.color}
+                                            dataKey={series.key}
+                                            name={series.label}
+                                            stroke={series.color}
+                                            strokeDasharray={series.dashed ? '6 4' : undefined}
                                             strokeWidth={2}
-                                            dot={{ r: 4, fill: chartConfig[compareTeamNumber]?.color, stroke: chartConfig[compareTeamNumber]?.color, strokeWidth: 2 }}
-                                            activeDot={{ r: 6, fill: chartConfig[compareTeamNumber]?.color, stroke: chartConfig[compareTeamNumber]?.color, strokeWidth: 2 }}
+                                            dot={{ r: 4, fill: series.color, stroke: series.color, strokeWidth: 2 }}
+                                            activeDot={{ r: 6, fill: series.color, stroke: series.color, strokeWidth: 2 }}
                                             connectNulls={false}
                                         />
-                                    )}
+                                    ))}
                                 </LineChart>
-                            ) : (
-                                <div className="flex items-center justify-center h-full text-muted-foreground">
-                                    Loading chart...
-                                </div>
-                            )}
+                            </ResponsiveContainer>
                         </div>
                     </ChartContainer>
                 </div>
