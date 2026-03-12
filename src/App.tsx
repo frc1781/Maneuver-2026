@@ -83,11 +83,18 @@ const mockUI = { GameStartScreen: () => null, AutoScoringScreen: () => null, Tel
 
 // Demo data handlers
 const DEMO_EVENT_KEY = 'demo2026';
+const DEMO_FOCUS_TEAM_NUMBERS = [1000, 2000] as const;
+const DEMO_EXTRA_EVENT_KEYS = [
+  'demo2026_week2',
+  'demo2026_week3',
+  'demo2026_week4',
+] as const;
+const DEMO_ALL_EVENT_KEYS = [DEMO_EVENT_KEY, ...DEMO_EXTRA_EVENT_KEYS] as const;
 
 const loadDemoData = async () => {
   console.log('🎲 Loading demo data...');
-  
-  // Generate comprehensive demo data
+
+  // Generate the original full event dataset.
   await generateDemoEvent({
     eventKey: DEMO_EVENT_KEY,
     clearExisting: true,
@@ -95,15 +102,29 @@ const loadDemoData = async () => {
     includePlayoffs: true,
     seedFakeValidationResults: false,
   });
+
+  // Add extra events for only the two focus teams so multi-event comparisons still exist.
+  for (const eventKey of DEMO_EXTRA_EVENT_KEYS) {
+    await generateDemoEvent({
+      eventKey,
+      clearExisting: true,
+      gameDataGenerator: generate2026GameData,
+      includePlayoffs: true,
+      seedFakeValidationResults: false,
+      focusTeamNumbers: [...DEMO_FOCUS_TEAM_NUMBERS],
+    });
+  }
   
   // Update local storage for demo event
   localStorage.setItem('eventName', DEMO_EVENT_KEY);
   
   const eventsList = JSON.parse(localStorage.getItem('eventsList') || '[]');
-  if (!eventsList.includes(DEMO_EVENT_KEY)) {
-    eventsList.push(DEMO_EVENT_KEY);
-    localStorage.setItem('eventsList', JSON.stringify(eventsList));
+  for (const eventKey of DEMO_ALL_EVENT_KEYS) {
+    if (!eventsList.includes(eventKey)) {
+      eventsList.push(eventKey);
+    }
   }
+  localStorage.setItem('eventsList', JSON.stringify(eventsList));
   
   // Update scouts list
   const scouts = await gameDB.scouts.toArray();
@@ -136,29 +157,31 @@ const clearDemoData = async () => {
   console.log('🗑️ Clearing demo data...');
   
   // Clear all demo data from databases
-  await db.scoutingData.where('eventKey').equals(DEMO_EVENT_KEY).delete();
-  await pitDB.pitScoutingData.where('eventKey').equals(DEMO_EVENT_KEY).delete();
+  for (const eventKey of DEMO_ALL_EVENT_KEYS) {
+    await db.scoutingData.where('eventKey').equals(eventKey).delete();
+    await pitDB.pitScoutingData.where('eventKey').equals(eventKey).delete();
+    await gameDB.predictions.where('eventKey').equals(eventKey).delete();
+    await clearEventCache(eventKey);
+    await clearEventValidationResults(eventKey);
+  }
   await gameDB.scouts.clear();
-  await gameDB.predictions.where('eventKey').equals(DEMO_EVENT_KEY).delete();
   await gameDB.scoutAchievements.clear();
-  await clearEventCache(DEMO_EVENT_KEY);
-  await clearEventValidationResults(DEMO_EVENT_KEY);
   
   // Clear from local storage
   const eventsList = JSON.parse(localStorage.getItem('eventsList') || '[]');
-  const filtered = eventsList.filter((e: string) => e !== DEMO_EVENT_KEY);
+  const filtered = eventsList.filter((e: string) => !DEMO_ALL_EVENT_KEYS.includes(e as typeof DEMO_ALL_EVENT_KEYS[number]));
   localStorage.setItem('eventsList', JSON.stringify(filtered));
   
-  if (localStorage.getItem('eventName') === DEMO_EVENT_KEY) {
+  if (DEMO_ALL_EVENT_KEYS.includes((localStorage.getItem('eventName') || '') as typeof DEMO_ALL_EVENT_KEYS[number])) {
     localStorage.removeItem('eventName');
   }
 
-  if (localStorage.getItem('eventKey') === DEMO_EVENT_KEY) {
+  if (DEMO_ALL_EVENT_KEYS.includes((localStorage.getItem('eventKey') || '') as typeof DEMO_ALL_EVENT_KEYS[number])) {
     localStorage.removeItem('eventKey');
   }
 
   const customEvents = JSON.parse(localStorage.getItem('customEventsList') || '[]');
-  const filteredCustomEvents = customEvents.filter((e: string) => e !== DEMO_EVENT_KEY);
+  const filteredCustomEvents = customEvents.filter((e: string) => !DEMO_ALL_EVENT_KEYS.includes(e as typeof DEMO_ALL_EVENT_KEYS[number]));
   localStorage.setItem('customEventsList', JSON.stringify(filteredCustomEvents));
 
   localStorage.removeItem('matchData');
@@ -167,9 +190,19 @@ const clearDemoData = async () => {
 };
 
 const checkDemoData = async (): Promise<boolean> => {
-  const entryCount = await db.scoutingData.where('eventKey').equals(DEMO_EVENT_KEY).count();
-  const cachedMatches = await getCachedTBAEventMatches(DEMO_EVENT_KEY);
-  return entryCount > 0 || cachedMatches.length > 0;
+  for (const eventKey of DEMO_ALL_EVENT_KEYS) {
+    const entryCount = await db.scoutingData.where('eventKey').equals(eventKey).count();
+    if (entryCount > 0) {
+      return true;
+    }
+
+    const cachedMatches = await getCachedTBAEventMatches(eventKey);
+    if (cachedMatches.length > 0) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 function App() {
@@ -206,8 +239,8 @@ function App() {
               onLoadDemoScheduleOnly={loadDemoScheduleOnly}
               onClearData={clearDemoData}
               checkExistingData={checkDemoData}
-              demoDataDescription="Load sample data for 30 teams, 60 matches, 8 scouts with predictions, and pit scouting to explore all features"
-              demoDataStats="Demo data loaded! 30 teams, 60 matches, 8 scouts"
+              demoDataDescription="Load standard demo data (30 teams, 60 matches, 8 scouts) plus 3 extra events for teams 1000 and 2000 to test multi-event views"
+              demoDataStats="Demo data loaded! Full event + teams 1000/2000 across 4 events"
               demoScheduleStats="Demo schedule loaded! 30 teams, 60 matches"
             />
           } 

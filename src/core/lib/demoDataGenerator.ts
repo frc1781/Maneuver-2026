@@ -280,6 +280,7 @@ export interface DemoDataOptions {
     gameDataGenerator?: GameDataGenerator;
     includePlayoffs?: boolean;
     seedFakeValidationResults?: boolean;
+    focusTeamNumbers?: number[];
 }
 
 export interface DemoDataResult {
@@ -413,6 +414,15 @@ function parseFuelCounts(gameData: Record<string, unknown>): { auto: number; tel
         0;
 
     return { auto: autoFuel, teleop: teleopFuel };
+}
+
+function normalizeMatchKey(matchKey: string, eventKey: string): string {
+    const prefix = `${eventKey}_`;
+    if (matchKey.startsWith(prefix)) {
+        return matchKey.slice(prefix.length);
+    }
+
+    return matchKey;
 }
 
 function applyOfficialFuelVariance(value: number): number {
@@ -921,7 +931,12 @@ export async function generateDemoEvent(options: DemoDataOptions = {}): Promise<
         gameDataGenerator = defaultGameDataGenerator,
         includePlayoffs: _includePlayoffs = true,
         seedFakeValidationResults: shouldSeedFakeValidationResults = false,
+        focusTeamNumbers,
     } = options;
+
+    const focusTeamSet = focusTeamNumbers && focusTeamNumbers.length > 0
+        ? new Set(focusTeamNumbers)
+        : null;
     
     console.log('🎲 Generating demo event data...');
     
@@ -952,14 +967,13 @@ export async function generateDemoEvent(options: DemoDataOptions = {}): Promise<
         const matchScoutAssignments: DemoScoutAssignments = new Map();
         
         for (const match of allMatches) {
-            const normalizedMatchKey = match.matchKey.includes('_')
-                ? (match.matchKey.split('_')[1] || match.matchKey)
-                : match.matchKey;
+            const normalizedMatchKey = normalizeMatchKey(match.matchKey, eventKey);
 
             // Red alliance entries
             for (let i = 0; i < match.redTeams.length; i++) {
                 const teamNumber = match.redTeams[i];
                 if (!teamNumber) continue;
+                if (focusTeamSet && !focusTeamSet.has(teamNumber)) continue;
                 
                 // Check for duplicate team in this match
                 const entryId = `${eventKey}::${normalizedMatchKey}::${teamNumber}::red`;
@@ -1004,6 +1018,7 @@ export async function generateDemoEvent(options: DemoDataOptions = {}): Promise<
             for (let i = 0; i < match.blueTeams.length; i++) {
                 const teamNumber = match.blueTeams[i];
                 if (!teamNumber) continue;
+                if (focusTeamSet && !focusTeamSet.has(teamNumber)) continue;
                 
                 // Check for duplicate team in this match
                 const entryId = `${eventKey}::${normalizedMatchKey}::${teamNumber}::blue`;
@@ -1055,6 +1070,8 @@ export async function generateDemoEvent(options: DemoDataOptions = {}): Promise<
         const programmingLanguages: ProgrammingLanguage[] = ['Java', 'C++', 'Python', 'LabVIEW'];
         
         for (const team of teams) {
+            if (focusTeamSet && !focusTeamSet.has(team.teamNumber)) continue;
+
             const profile = teamProfilesMap.get(team.teamNumber);
             if (!profile) continue;
 
