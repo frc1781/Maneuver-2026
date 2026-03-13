@@ -132,6 +132,7 @@ interface MatchSchedule {
     matchKey: string;
     matchNumber: number;
     compLevel: 'qm' | 'qf' | 'sf' | 'f';
+    setNumber: number;
     redTeams: number[];
     blueTeams: number[];
 }
@@ -163,12 +164,164 @@ function generateQualSchedule(teams: TeamSkillProfile[], eventKey: string): Matc
             matchKey: `${eventKey}_qm${matchNum}`,
             matchNumber: matchNum,
             compLevel: 'qm',
+            setNumber: 1,
             redTeams,
             blueTeams,
         });
     }
     
     return matches;
+}
+
+/**
+ * Fixed playoff story for demos using an 8-alliance double-elimination bracket.
+ * Team 1001 is seeded on Alliance 1 and runs clean through the winners side.
+ */
+function generatePlayoffSchedule(eventKey: string): MatchSchedule[] {
+    const alliance1 = [1001, 1000, 2000];
+    const alliance2 = [1002, 2001, 2002];
+    const alliance3 = [2003, 2004, 2005];
+    const alliance4 = [2006, 2007, 3000];
+    const alliance5 = [3001, 3002, 3003];
+    const alliance6 = [3004, 3005, 3006];
+    const alliance7 = [3007, 3008, 3009];
+    const alliance8 = [3010, 3011, 4000];
+
+    return [
+        // Upper bracket round 1
+        {
+            matchKey: `${eventKey}_sf1m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 1,
+            redTeams: alliance1,
+            blueTeams: alliance8,
+        },
+        {
+            matchKey: `${eventKey}_sf2m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 2,
+            redTeams: alliance4,
+            blueTeams: alliance5,
+        },
+        {
+            matchKey: `${eventKey}_sf3m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 3,
+            redTeams: alliance2,
+            blueTeams: alliance7,
+        },
+        {
+            matchKey: `${eventKey}_sf4m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 4,
+            redTeams: alliance3,
+            blueTeams: alliance6,
+        },
+
+        // Lower bracket round 1
+        {
+            matchKey: `${eventKey}_sf5m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 5,
+            redTeams: alliance8,
+            blueTeams: alliance4,
+        },
+        {
+            matchKey: `${eventKey}_sf6m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 6,
+            redTeams: alliance7,
+            blueTeams: alliance6,
+        },
+
+        // Upper bracket round 2
+        {
+            matchKey: `${eventKey}_sf7m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 7,
+            redTeams: alliance1,
+            blueTeams: alliance5,
+        },
+        {
+            matchKey: `${eventKey}_sf8m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 8,
+            redTeams: alliance2,
+            blueTeams: alliance3,
+        },
+
+        // Lower bracket rounds 2-3
+        {
+            matchKey: `${eventKey}_sf9m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 9,
+            redTeams: alliance5,
+            blueTeams: alliance6,
+        },
+        {
+            matchKey: `${eventKey}_sf10m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 10,
+            redTeams: alliance3,
+            blueTeams: alliance4,
+        },
+
+        // Upper bracket final
+        {
+            matchKey: `${eventKey}_sf11m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 11,
+            redTeams: alliance1,
+            blueTeams: alliance2,
+        },
+
+        // Lower bracket semifinal and final
+        {
+            matchKey: `${eventKey}_sf12m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 12,
+            redTeams: alliance3,
+            blueTeams: alliance5,
+        },
+        {
+            matchKey: `${eventKey}_sf13m1`,
+            matchNumber: 1,
+            compLevel: 'sf',
+            setNumber: 13,
+            redTeams: alliance2,
+            blueTeams: alliance3,
+        },
+
+        // Finals (best of three style keys, with two played in demo)
+        {
+            matchKey: `${eventKey}_f1m1`,
+            matchNumber: 1,
+            compLevel: 'f',
+            setNumber: 1,
+            redTeams: alliance1,
+            blueTeams: alliance2,
+        },
+        {
+            matchKey: `${eventKey}_f1m2`,
+            matchNumber: 2,
+            compLevel: 'f',
+            setNumber: 1,
+            redTeams: alliance1,
+            blueTeams: alliance2,
+        },
+    ];
 }
 
 // ============================================================================
@@ -747,7 +900,7 @@ function createFakeValidationResult(
         matchKey: match.matchKey,
         matchNumber: match.matchNumber.toString(),
         compLevel: match.compLevel,
-        setNumber: 1,
+        setNumber: match.setNumber,
         status,
         confidence,
         redAlliance: {
@@ -828,7 +981,7 @@ async function cacheAndStoreDemoSchedule(
         return {
             key: match.matchKey,
             comp_level: match.compLevel,
-            set_number: 1,
+            set_number: match.setNumber,
             match_number: match.matchNumber,
             alliances: {
                 red: {
@@ -888,21 +1041,23 @@ export async function generateDemoEventScheduleOnly(options: Pick<DemoDataOption
         console.log(`  ✓ Generated ${teams.length} team profiles`);
 
         const qualSchedule = generateQualSchedule(teams, eventKey);
-        console.log(`  ✓ Generated ${qualSchedule.length} qual matches`);
+        const playoffSchedule = generatePlayoffSchedule(eventKey);
+        const allMatches = [...qualSchedule, ...playoffSchedule];
+        console.log(`  ✓ Generated ${qualSchedule.length} qual matches and ${playoffSchedule.length} playoff matches`);
 
         localStorage.setItem('eventKey', eventKey);
         setCurrentEvent(eventKey);
         console.log(`  ✓ Set ${eventKey} as current event`);
 
-        await cacheAndStoreDemoSchedule(eventKey, qualSchedule);
+        await cacheAndStoreDemoSchedule(eventKey, allMatches);
 
         return {
             success: true,
-            message: `Demo schedule created: ${teams.length} teams, ${qualSchedule.length} matches`,
+            message: `Demo schedule created: ${teams.length} teams, ${allMatches.length} matches`,
             stats: {
                 teamsGenerated: teams.length,
                 qualMatches: qualSchedule.length,
-                playoffMatches: 0,
+                playoffMatches: playoffSchedule.length,
                 entriesGenerated: 0,
             },
         };
@@ -929,7 +1084,7 @@ export async function generateDemoEvent(options: DemoDataOptions = {}): Promise<
         eventKey = DEMO_EVENT_KEY,
         clearExisting = true,
         gameDataGenerator = defaultGameDataGenerator,
-        includePlayoffs: _includePlayoffs = true,
+        includePlayoffs = true,
         seedFakeValidationResults: shouldSeedFakeValidationResults = false,
         focusTeamNumbers,
     } = options;
@@ -955,10 +1110,11 @@ export async function generateDemoEvent(options: DemoDataOptions = {}): Promise<
         const teams = generateTeamProfiles();
         console.log(`  ✓ Generated ${teams.length} team profiles`);
         
-        // Generate match schedules (only qualification matches)
+        // Generate match schedules
         const qualSchedule = generateQualSchedule(teams, eventKey);
-        const allMatches = qualSchedule;
-        console.log(`  ✓ Generated ${qualSchedule.length} qual matches`);
+        const playoffSchedule = includePlayoffs ? generatePlayoffSchedule(eventKey) : [];
+        const allMatches = [...qualSchedule, ...playoffSchedule];
+        console.log(`  ✓ Generated ${qualSchedule.length} qual matches${includePlayoffs ? ` and ${playoffSchedule.length} playoff matches` : ''}`);
         
         // Generate scouting entries for all matches
         let entriesGenerated = 0;

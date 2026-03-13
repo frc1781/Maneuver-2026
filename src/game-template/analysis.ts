@@ -20,9 +20,9 @@ import type {
 } from "@/types/team-stats-display";
 import { scoringCalculations } from "@/game-template/scoring";
 import type { GameData as CoreGameData } from "@/game-template/scoring";
-// Use 2026 field images
-import fieldMapRedImage from "@/game-template/assets/2026-field-red.png";
-import fieldMapBlueImage from "@/game-template/assets/2026-field-blue.png";
+import { compareMatchLabels, getDisplayMatchLabel } from "@/game-template/matchLabel";
+import fieldMapRedImage from "@/game-template/assets/FieldMapRed.png";
+import fieldMapBlueImage from "@/game-template/assets/FieldMapBlue.png";
 
 
 /**
@@ -128,6 +128,7 @@ export interface TeamStatsTemplate extends TeamStats {
 export interface MatchResult {
     id?: string;
     matchNumber: string;
+    matchLabel?: string;
     alliance: string;
     eventKey: string;
     teamNumber?: number;
@@ -414,6 +415,7 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             return {
                 id: entry.id,
                 matchNumber: String(entry.matchNumber),
+                matchLabel: getDisplayMatchLabel(entry.matchKey || entry.matchNumber),
                 teamNumber: entry.teamNumber,
                 scoutName: entry.scoutName,
                 alliance: entry.allianceColor,
@@ -454,7 +456,7 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
                 ...(strategyAnalysis.calculateBasicStats([]) as TeamStatsTemplate),
                 teamNumber: entries[0]?.teamNumber || 0,
                 eventKey: entries[0]?.eventKey || '',
-                matchResults: matchResults.sort((a, b) => parseInt(a.matchNumber) - parseInt(b.matchNumber)),
+                matchResults: matchResults.sort((a, b) => compareMatchLabels(a.matchLabel ?? a.matchNumber, b.matchLabel ?? b.matchNumber)),
             };
         }
 
@@ -744,7 +746,7 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             accuracyLittleRate: Math.round((totals.accuracyLittle / matchCount) * 100),
             accuracyScore,
             startPositions,
-            matchResults: matchResults.sort((a, b) => parseInt(a.matchNumber) - parseInt(b.matchNumber)),
+            matchResults: matchResults.sort((a, b) => compareMatchLabels(a.matchLabel ?? a.matchNumber, b.matchLabel ?? b.matchNumber)),
             // Role statistics
             primaryActiveRole,
             primaryInactiveRole,
