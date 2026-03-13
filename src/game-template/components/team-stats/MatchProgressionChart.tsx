@@ -5,9 +5,11 @@ import { ChartContainer } from "@/core/components/ui/chart";
 import { getDistributedColor } from "@/core/lib/chartColors";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp } from "lucide-react";
+import { compareMatchLabels, getDisplayMatchLabel } from "@/game-template/matchLabel";
 
 export interface MatchProgressionMatchResult {
     matchNumber: string;
+    matchLabel?: string;
     eventKey?: string;
     totalPoints: number;
     autoPoints: number;
@@ -77,6 +79,13 @@ function getMetricValue(match: MatchProgressionMatchResult, metricKey: string): 
     return 0;
 }
 
+function getMatchLabel(match: MatchProgressionMatchResult): string {
+    if (typeof match.matchLabel === 'string' && match.matchLabel.trim() !== '') {
+        return match.matchLabel.trim();
+    }
+    return getDisplayMatchLabel(match.matchNumber);
+}
+
 function buildSeries(
     matches: MatchProgressionMatchResult[],
     teamNumber: number,
@@ -110,36 +119,56 @@ export function MatchProgressionChart({
     const primarySeriesKeyByEvent = new Map(primarySeries.map(series => [series.eventKey, series.key]));
     const compareSeriesKeyByEvent = new Map(compareSeries.map(series => [series.eventKey, series.key]));
 
-    // Prepare chart data: one row per match number so events share the same x-axis for comparison.
-    const chartRows = new Map<number, Record<string, number | string>>();
+    // Prepare chart data: one row per formatted match label so quals/elims do not collide.
+    const chartRows = new Map<string, Record<string, number | string>>();
+
+    const getChartRowKey = (match: MatchProgressionMatchResult): string => {
+        const label = getMatchLabel(match);
+        return label.toLowerCase();
+    };
 
     for (const match of matchResults) {
-        const matchNumber = getMatchNumber(match);
+        const rowKey = getChartRowKey(match);
         const eventKey = getEventKey(match);
         const seriesKey = primarySeriesKeyByEvent.get(eventKey);
         if (!seriesKey) continue;
 
-        const row = chartRows.get(matchNumber) ?? { match: matchNumber };
+        const row = chartRows.get(rowKey) ?? {
+            match: getMatchLabel(match),
+            sortLabel: getMatchLabel(match),
+            sortMatchNumber: getMatchNumber(match),
+        };
         row[seriesKey] = getMetricValue(match, selectedMetric);
-        chartRows.set(matchNumber, row);
+        chartRows.set(rowKey, row);
     }
 
     if (compareTeamNumber && compareMatchResults) {
         for (const match of compareMatchResults) {
-            const matchNumber = getMatchNumber(match);
+            const rowKey = getChartRowKey(match);
             const eventKey = getEventKey(match);
             const seriesKey = compareSeriesKeyByEvent.get(eventKey);
             if (!seriesKey) continue;
 
-            const row = chartRows.get(matchNumber) ?? { match: matchNumber };
+            const row = chartRows.get(rowKey) ?? {
+                match: getMatchLabel(match),
+                sortLabel: getMatchLabel(match),
+                sortMatchNumber: getMatchNumber(match),
+            };
             row[seriesKey] = getMetricValue(match, selectedMetric);
-            chartRows.set(matchNumber, row);
+            chartRows.set(rowKey, row);
         }
     }
 
     const chartData = [...chartRows.values()].sort((a, b) => {
-        const matchA = typeof a.match === 'number' ? a.match : Number(a.match) || 0;
-        const matchB = typeof b.match === 'number' ? b.match : Number(b.match) || 0;
+        const labelA = typeof a.sortLabel === 'string' ? a.sortLabel : String(a.match ?? '');
+        const labelB = typeof b.sortLabel === 'string' ? b.sortLabel : String(b.match ?? '');
+        const labelCompare = compareMatchLabels(labelA, labelB);
+        if (labelCompare !== 0) {
+            return labelCompare;
+        }
+
+        const matchA = typeof a.sortMatchNumber === 'number' ? a.sortMatchNumber : Number(a.sortMatchNumber) || 0;
+        const matchB = typeof b.sortMatchNumber === 'number' ? b.sortMatchNumber : Number(b.sortMatchNumber) || 0;
         return matchA - matchB;
     });
 

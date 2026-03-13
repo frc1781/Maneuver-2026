@@ -6,6 +6,7 @@ import type { MatchProgressionMatchResult } from "./MatchProgressionChart";
 import { MatchStatsDialog } from "./MatchStatsDialog";
 import type { TeamStats } from "@/core/types/team-stats";
 import type { RateSectionDefinition, MatchBadgeDefinition } from "@/types/team-stats-display";
+import { getDisplayMatchLabel } from "@/game-template/matchLabel";
 
 interface PerformanceAnalysisProps {
     teamStats: TeamStats;
@@ -49,10 +50,13 @@ export function PerformanceAnalysis({
         }
 
         return (
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="h-full space-y-3 overflow-y-auto pr-1">
                 {matchResults.map((match, index: number) => {
                     const eventKey = typeof match['eventKey'] === 'string' ? match['eventKey'] : null;
                     const matchNumber = String(match['matchNumber'] || '');
+                    const matchLabel = typeof match['matchLabel'] === 'string' && match['matchLabel'].trim() !== ''
+                        ? match['matchLabel'].trim()
+                        : getDisplayMatchLabel(matchNumber);
                     const alliance = String(match['alliance'] || '');
                     const startPos = typeof match['startPosition'] === 'number' ? match['startPosition'] : null;
                     const totalPoints = String(match['totalPoints'] || 0);
@@ -71,7 +75,7 @@ export function PerformanceAnalysis({
                                             {eventKey}
                                         </Badge>
                                     )}
-                                    <Badge variant="outline">Match {matchNumber}</Badge>
+                                    <Badge variant="outline">{matchLabel}</Badge>
                                     <Badge
                                         variant={alliance.toLowerCase() === "red" ? "destructive" : "default"}
                                         className={alliance.toLowerCase() === "blue" ? "bg-blue-600" : ""}
@@ -239,11 +243,11 @@ export function PerformanceAnalysis({
                     </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="h-full flex flex-col">
                     <CardHeader>
                         <CardTitle>Match-by-Match Performance</CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="flex-1 min-h-0">
                         {renderMatchResults()}
                     </CardContent>
                 </Card>

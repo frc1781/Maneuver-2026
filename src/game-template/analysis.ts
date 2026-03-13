@@ -24,6 +24,7 @@ import type {
 } from "@/types/team-stats-display";
 import { scoringCalculations } from "@/game-template/scoring";
 import type { GameData as CoreGameData } from "@/game-template/scoring";
+import { compareMatchLabels, getDisplayMatchLabel } from "@/game-template/matchLabel";
 import fieldMapImage from "@/game-template/assets/FieldMap.png";
 import fieldMapBlueImage from "@/game-template/assets/FieldMapBlue.png";
 
@@ -72,6 +73,7 @@ interface TeamStatsTemplate extends TeamStats {
 export interface MatchResult {
     id?: string;
     matchNumber: string;
+    matchLabel?: string;
     alliance: string;
     eventKey: string;
     teamNumber?: number;
@@ -177,6 +179,7 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             return {
                 id: entry.id,
                 matchNumber: String(entry.matchNumber),
+                matchLabel: getDisplayMatchLabel(entry.matchKey || entry.matchNumber),
                 teamNumber: entry.teamNumber,
                 scoutName: entry.scoutName,
                 alliance: entry.allianceColor,
@@ -223,7 +226,7 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
                 endgameSuccessRate: 0,
                 breakdownRate: 0,
                 startPositions: {},
-                matchResults: matchResults.sort((a, b) => parseInt(a.matchNumber) - parseInt(b.matchNumber)),
+                matchResults: matchResults.sort((a, b) => compareMatchLabels(a.matchLabel ?? a.matchNumber, b.matchLabel ?? b.matchNumber)),
             };
         }
 
@@ -283,7 +286,7 @@ export const strategyAnalysis: StrategyAnalysis<ScoutingEntryTemplate> = {
             endgameSuccessRate: Math.round((totals.endgameSuccess / matchCount) * 100),
             breakdownRate: Math.round((totals.breakdown / matchCount) * 100),
             startPositions,
-            matchResults: matchResults.sort((a, b) => parseInt(a.matchNumber) - parseInt(b.matchNumber)),
+            matchResults: matchResults.sort((a, b) => compareMatchLabels(a.matchLabel ?? a.matchNumber, b.matchLabel ?? b.matchNumber)),
         };
     },
 
