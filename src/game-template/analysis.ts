@@ -21,8 +21,8 @@ import type {
 import { scoringCalculations } from "@/game-template/scoring";
 import type { GameData as CoreGameData } from "@/game-template/scoring";
 import { compareMatchLabels, getDisplayMatchLabel } from "@/game-template/matchLabel";
-import fieldMapRedImage from "@/game-template/assets/FieldMapRed.png";
-import fieldMapBlueImage from "@/game-template/assets/FieldMapBlue.png";
+import fieldMapRedImage from "@/game-template/assets/2026-field-red.png";
+import fieldMapBlueImage from "@/game-template/assets/2026-field-blue.png";
 
 
 /**
