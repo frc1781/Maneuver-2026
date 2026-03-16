@@ -1,5 +1,11 @@
+# Allow the service worker to be served directly
+[[redirects]]
+  from = "/service-worker.js"
+  to = "/service-worker.js"
+  status = 200
+  force = false
+
 # Redirect all requests to index.html for SPA routing
-# Functions are automatically handled by Netlify at /.netlify/functions/*
 [[redirects]]
   from = "/*"
   to = "/index.html"
